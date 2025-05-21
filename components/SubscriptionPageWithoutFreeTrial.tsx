@@ -23,6 +23,17 @@ import { Colors } from "@/constants/Colors";
 
 const { width, height } = Dimensions.get("window");
 
+interface SubscriptionPageWithoutFreeTrialProps {
+  purchaseWeekly: () => void;
+  purchaseAnnual: () => void;
+  weeklyPricePerWeek: string;
+  weeklyPricePerYear: string;
+  annualPricePerWeek: string;
+  annualPricePerYear: string;
+  restorePurchases: () => void;
+  onClose: () => void;
+}
+
 export default function SubscriptionPageWithoutFreeTrial({
   purchaseWeekly,
   purchaseAnnual,
@@ -31,15 +42,8 @@ export default function SubscriptionPageWithoutFreeTrial({
   annualPricePerWeek,
   annualPricePerYear,
   restorePurchases,
-}: {
-  purchaseWeekly: () => void;
-  purchaseAnnual: () => void;
-  weeklyPricePerWeek: string;
-  weeklyPricePerYear: string;
-  annualPricePerWeek: string;
-  annualPricePerYear: string;
-  restorePurchases: () => void;
-}) {
+  onClose,
+}: SubscriptionPageWithoutFreeTrialProps) {
   const [selectedPlan, setSelectedPlan] = useState<"weekly" | "yearly">(
     "yearly"
   );
@@ -56,6 +60,10 @@ export default function SubscriptionPageWithoutFreeTrial({
       />
 
       <View style={styles.container}>
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <Text style={styles.closeButtonText}>X</Text>
+        </TouchableOpacity>
+
         <View style={{ gap: verticalScale(12), alignItems: "center" }}>
           <Image
             resizeMode="contain"
@@ -639,4 +647,16 @@ const styles = StyleSheet.create({
     fontFamily: "SFProBold",
     fontSize: moderateScale(12),
   },
+  closeButton: {
+    position: 'absolute',
+    top: verticalScale(40), 
+    right: horizontalScale(20),
+    padding: moderateScale(10),
+    zIndex: 10, 
+  },
+  closeButtonText: {
+    color: Colors.white,
+    fontSize: moderateScale(24),
+    fontFamily: 'SFProBold',
+  }
 });

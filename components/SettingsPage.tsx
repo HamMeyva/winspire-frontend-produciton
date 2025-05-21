@@ -50,6 +50,9 @@ const SettingsPage = ({
   const [actionManagerVisible, setActionManagerVisible] = useState(false);
   const [hacksPreviewVisible, setHacksPreviewVisible] = useState(false);
 
+  // Access subscription status from userStore
+  const { isSubscribed } = userStore;
+
   // const [subscriptionType, setSubscriptionType] = useState(""); // No longer needed
   // const [offerings, setOfferings] = useState<any>({}); // No longer used
 
@@ -130,7 +133,12 @@ const SettingsPage = ({
             <Text style={styles.sendMessageButtonSubText}>or need help</Text>
           </TouchableOpacity>
 
-          {/* Removed Admin Panel Button, Review Button, Contact Support Button */}
+          {/* Subscription Status Display */}
+          <View style={styles.subscriptionStatusContainer}>
+            <Text style={styles.subscriptionStatusText}>
+              Subscription Status: {isSubscribed ? "Premium" : "Free"}
+            </Text>
+          </View>
 
           <View style={styles.socialButtonsContainer}>
             <TouchableOpacity
@@ -325,6 +333,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gray, // Background for social buttons
     borderRadius: moderateScale(28), // Adjusted for new size
     // Removed shadow for a flatter look as in design, can be added back if needed
+  },
+  subscriptionStatusContainer: {
+    alignItems: "center",
+    marginVertical: verticalScale(15),
+  },
+  subscriptionStatusText: {
+    color: Colors.lightGray,
+    fontFamily: "SFProRegular",
+    fontSize: moderateScale(16),
   },
   // Styles for MessageSheet Modal (mostly unchanged, review if needed)
   messageSheetView: {

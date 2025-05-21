@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "winspire",
-    "slug": "winspire",
+    "slug": "winspirebuild",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "com.windspire.app",
+    "scheme": "com.soundayou.winspire",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -20,14 +20,14 @@
           "backgroundColor": "#000000"
         }
       },
-      "bundleIdentifier": "com.winspire",
+      "bundleIdentifier": "com.soundayou.winspire",
+      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "com.winspire",
-              "com.windspire.app",
+              "com.soundayou.winspire",
               "exp"
             ]
           }
@@ -79,9 +79,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "5a121d22-734f-4212-866b-560340c53f90"
+        "projectId": "310feed6-b7b8-47ea-8af2-9252a862d267"
       }
     },
-    "owner": ""
+    "owner": "hammeyva"
   }
 }

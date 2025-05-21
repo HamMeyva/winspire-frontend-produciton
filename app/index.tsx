@@ -6,10 +6,20 @@ import {
   Dimensions,
   Text,
   RefreshControl,
+  ActivityIndicator, // Added ActivityIndicator
 } from "react-native";
 import { observer } from "mobx-react-lite";
 import React, { useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import Purchases, { 
+  CustomerInfo,
+  PurchasesOffering,
+  PurchasesPackage, 
+  LOG_LEVEL, 
+  PurchasesStoreProduct, 
+  SubscriptionOption, // Added import
+} from 'react-native-purchases'; 
+import { Alert, AppState } from 'react-native'; 
 
 // components
 import Header from "@/components/Header";
@@ -33,6 +43,7 @@ import {
   limitedTimeOfferStore,
   offeringsStore,
   contentTypeStore,
+  userStore
 } from "@/context/store";
 
 // utils
@@ -44,18 +55,18 @@ const { width } = Dimensions.get("screen");
 function Main() {
   const scrollViewRef = useRef<any>(null);
 
+  const [isRevenueCatConfigured, setIsRevenueCatConfigured] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); 
   const [refreshing, setRefreshing] = useState(false);
   const [checker, setChecker] = useState(false);
-  const [subscribed, setSubscribed] = useState(true);
+  const [subscribed, setSubscribed] = useState(userStore.isSubscribed); 
   const [freeTrialAvailable, setFreeTrialAvailable] = useState(false);
+  const [paywallDismissedInitially, setPaywallDismissedInitially] = useState(false);
 
-  const [infoBottomSheetVisible, setInfoBottomSheetVisible] =
-    useState<boolean>(false);
-  const [settingsBottomSheetVisible, setSettingsBottomSheetVisible] =
-    useState<boolean>(false);
+  const [infoBottomSheetVisible, setInfoBottomSheetVisible] = useState<boolean>(false);
+  const [settingsBottomSheetVisible, setSettingsBottomSheetVisible] = useState<boolean>(false);
 
-  const [limitedTimeOfferModalVisible, setLimitedTimeOfferModalVisible] =
-    useState(false);
+  const [limitedTimeOfferModalVisible, setLimitedTimeOfferModalVisible] = useState(false);
 
   const [activeTab, setActiveTab] = useState<string>(
     Object.keys(categoriesStore.categories)[0]
@@ -99,7 +110,7 @@ function Main() {
         console.log(`DEBUG: onRefresh - Daily subcategory progress already reset for ${currentDate}.`);
       }
       // --- Daily progress reset logic END ---
-
+      
       // Fetch latest content for current content type
       if (contentTypeStore.activeContentType) {
         console.log('Refreshing content for:', contentTypeStore.activeContentType);
@@ -129,56 +140,129 @@ function Main() {
   }, [cardsPageVisible]);
   
 
+  // Effect to initialize RevenueCat and set up listener
+  useEffect(() => {
+    const initializeRevenueCat = async () => {
+      if (REVENUECAT_API_KEY && (REVENUECAT_API_KEY as string) !== 'YOUR_REVENUECAT_API_KEY_HERE') {
+        Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG); 
+        await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+        setIsRevenueCatConfigured(true);
+        console.log("DEBUG: RevenueCat SDK configured.");
+
+        // Define the listener function
+        const customerInfoUpdateListener = async (customerInfo: CustomerInfo) => { 
+          console.log("DEBUG: CustomerInfo updated via listener:", customerInfo.entitlements.active);
+          updateSubscriptionStatus(customerInfo);
+        };
+
+        // Add listener for customer info updates
+        Purchases.addCustomerInfoUpdateListener(customerInfoUpdateListener);
+
+        // Initial fetch of customer info
+        getCustomerInfo(); // Fetch when app starts and SDK is configured
+
+        // Store the listener reference for cleanup
+        return () => {
+          Purchases.removeCustomerInfoUpdateListener(customerInfoUpdateListener); // Pass listener here
+        };
+
+      } else {
+        console.error("ERROR: RevenueCat API Key is a placeholder or incorrect. Please update it.");
+        return () => {}; // Return an empty cleanup function if not configured
+      }
+    };
+
+    let cleanupRevenueCat: (() => void) | undefined;
+    initializeRevenueCat().then(cleanup => {
+      cleanupRevenueCat = cleanup;
+    });
+
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'active' && isRevenueCatConfigured) {
+        console.log('DEBUG: App has come to the foreground, fetching customer info.');
+        getCustomerInfo();
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Cleanup listener on component unmount
+    return () => {
+      if (cleanupRevenueCat) {
+        cleanupRevenueCat();
+      }
+      appStateSubscription.remove();
+    };
+  }, [isRevenueCatConfigured]); // Dependency array includes isRevenueCatConfigured
+
+  // Function to update subscription status based on RevenueCat CustomerInfo
+  const updateSubscriptionStatus = (customerInfo: CustomerInfo) => { 
+    const isActive = typeof customerInfo.entitlements.active[PREMIUM_ENTITLEMENT_ID] !== "undefined";
+    userStore.setIsSubscribed(isActive); 
+    setSubscribed(isActive); 
+    
+    console.log(`DEBUG: updateSubscriptionStatus - User is ${isActive ? 'SUBSCRIBED' : 'NOT SUBSCRIBED'} to ${PREMIUM_ENTITLEMENT_ID}`);
+    // TODO: Potentially update freeTrialAvailable state based on offerings and entitlements
+  };
+
+
   const getCustomerInfo = async () => {
-    console.log("DEBUG: getCustomerInfo called, setting subscribed to true");
-    setSubscribed(true);
-    return null;
+    if (!isRevenueCatConfigured) {
+      console.log("DEBUG: RevenueCat not configured yet, skipping getCustomerInfo.");
+      return;
+    }
+    setIsLoading(true); 
+    try {
+      console.log("DEBUG: Fetching CustomerInfo from RevenueCat...");
+      const customerInfo = await Purchases.getCustomerInfo();
+      console.log("DEBUG: Fetched CustomerInfo from RevenueCat:", customerInfo.entitlements.active);
+      updateSubscriptionStatus(customerInfo);
+
+      console.log("DEBUG: Fetching offerings from RevenueCat...");
+      const offerings = await Purchases.getOfferings();
+      if (offerings.current !== null && offerings.current.availablePackages.length > 0) {
+        offeringsStore.update(offerings); 
+        console.log("DEBUG: Offerings fetched and updated in store:", offerings.current);
+        
+        const currentOffering = offerings.current;
+        const productIdentifiersForEligibilityCheck = currentOffering.availablePackages.map(p => p.product.identifier);
+        const isEligibleForIntro = await Purchases.checkTrialOrIntroductoryPriceEligibility(productIdentifiersForEligibilityCheck);
+        
+        let trialIsActuallyAvailable = false;
+        for (const pkg of currentOffering.availablePackages) {
+            // Check if the product has a free trial or introductory offer AND if the user is eligible for it.
+            const product = pkg.product;
+            const isEligible = isEligibleForIntro[product.identifier]?.status === Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE;
+            
+            if (isEligible && product.subscriptionOptions?.some((opt: SubscriptionOption) => opt.freePhase !== null || opt.introPhase !== null)) {
+                trialIsActuallyAvailable = true;
+                break;
+            }
+        }
+        setFreeTrialAvailable(trialIsActuallyAvailable && !userStore.isSubscribed);
+        console.log(`DEBUG: Free trial available: ${trialIsActuallyAvailable && !userStore.isSubscribed} (Eligibility Checked for ${productIdentifiersForEligibilityCheck.join(', ')}, User subscribed: ${userStore.isSubscribed})`);
+
+      } else {
+        console.log("DEBUG: No current offerings found from RevenueCat or no packages in current offering.");
+        offeringsStore.update({current: null, all: {}}); 
+        setFreeTrialAvailable(false);
+      }
+    } catch (error) {
+      console.error("ERROR: Failed to get CustomerInfo or Offerings from RevenueCat:", error);
+      userStore.setIsSubscribed(false);
+      setSubscribed(false);
+      setFreeTrialAvailable(false);
+    } finally {
+      setIsLoading(false); 
+    }
   };
 
-  const checkTrialEligibility = async () => {
-    // Placeholder for future IAP implementation
-    return false;
-  };
-
-  const restorePurchases = async () => {
-    // Placeholder for future IAP implementation
-    return null;
-  };
-
-  const purchasePackage = async () => {
-    // Placeholder for future IAP implementation
-    return null;
-  };
-
-  const handleLimitedTimeOffer = async () => {
-    // Placeholder for future IAP implementation
-    return null;
-  };
-
-  useEffect(() => {
-    console.log("DEBUG: Main component mounted");
-    handleLimitedTimeOffer();
-    getCustomerInfo();
-  }, []);
-
-  const purchaseFreeTrial = async () => {
-    // Placeholder for future IAP implementation
-    return null;
-  };
-
-  const purchaseMonthly = async () => {
-    // Placeholder for future IAP implementation
-    return null;
-  };
-
-  const purchaseAnnual = async () => {
-    // Placeholder for future IAP implementation
-    return null;
-  };
-
-  useEffect(() => {
-    setChecker(!checker);
-  }, [offeringsStore.offerings, subscribed, freeTrialAvailable]);
+  // Fetch customer info when RevenueCat is configured
+   useEffect(() => {
+    if (isRevenueCatConfigured) {
+      getCustomerInfo(); // Fetch when app starts and SDK is configured
+    }
+  }, [isRevenueCatConfigured]);
 
   const showLimitedTimeOffer = () => {
     setLimitedTimeOfferModalVisible(true);
@@ -187,7 +271,7 @@ function Main() {
   useEffect(() => {
     const loadDataForActiveContentType = async () => {
       if (contentTypeStore.activeContentType) {
-        // setLoadingCategories(true); // Optional: manage a loading state
+        // setLoadingCategories(true); 
 
         // --- Daily progress reset logic START ---
         const currentDate = new Date().toISOString().split('T')[0];
@@ -206,10 +290,10 @@ function Main() {
         try {
           const categoriesData = await API.getCategoriesByContentType(contentTypeStore.activeContentType);
           categoriesStore.update(categoriesData);
-          await updateCategoryDone(); // Refresh completion status after new data
+          await updateCategoryDone(); 
         } catch (error) {
           console.error('Error fetching categories for activeContentType:', error);
-          // categoriesStore.update({}); // Optionally clear if fetch fails
+          // categoriesStore.update({}); 
         }
         // setLoadingCategories(false);
       } else {
@@ -217,52 +301,264 @@ function Main() {
         if (Object.keys(categoriesStore.categories).length > 0) {
           console.log("DEBUG: No active content type, clearing categories from store.");
           categoriesStore.update({});
-          await updateCategoryDone(); // Reflect cleared state
+          await updateCategoryDone(); 
         }
       }
     };
 
     loadDataForActiveContentType();
-  }, [contentTypeStore.activeContentType]); // Re-run when activeContentType changes
+  }, [contentTypeStore.activeContentType]); 
 
-  if (!subscribed && freeTrialAvailable) {
+  const makePurchase = async (packageToPurchase: PurchasesPackage | null | undefined) => {
+    if (!packageToPurchase) {
+      Alert.alert("Error", "Selected subscription package is not available. Please try again later.");
+      console.error("ERROR: Attempted to purchase a null/undefined package.");
+      return;
+    }
+    if (!isRevenueCatConfigured) {
+      Alert.alert("Error", "Purchases system is not ready. Please try again in a moment.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      console.log(`DEBUG: Attempting to purchase package: ${packageToPurchase.identifier}`);
+      const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
+      console.log("DEBUG: Purchase successful for package:", packageToPurchase.identifier, "CustomerInfo:", customerInfo.entitlements.active);
+      updateSubscriptionStatus(customerInfo); // Update UI immediately
+      Alert.alert("Success", "Your subscription is now active!");
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        console.error(`ERROR: Purchase failed for package ${packageToPurchase.identifier}:`, e);
+        Alert.alert("Purchase Error", e.message || "An error occurred during the purchase. Please try again.");
+      } else {
+        console.log("DEBUG: User cancelled the purchase flow.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const purchaseFreeTrial = async () => {
+    // Find a package that offers a trial. This logic assumes the 'current' offering
+    // has a package eligible for a trial (often the weekly or a specific trial package).
+    // You might need more specific logic if you have multiple offerings or complex trial conditions.
+    const currentOffering = offeringsStore.offerings?.current;
+    if (!currentOffering) {
+      Alert.alert("Error", "No subscription offers currently available.");
+      return;
+    }
+
+    let trialPackage: PurchasesPackage | undefined = undefined;
+
+    // Option 1: If you have a package specifically named e.g., 'trial_package_identifier'
+    // trialPackage = currentOffering.availablePackages.find(p => p.identifier === 'your_trial_package_id');
+
+    // Option 2: Find any package that has an introductory discount and the user is eligible
+    if (!trialPackage) {
+      for (const pkg of currentOffering.availablePackages) {
+        if (pkg.product.subscriptionOptions?.some((opt: SubscriptionOption) => opt.freePhase !== null || opt.introPhase !== null)) {
+          const eligibility = await Purchases.checkTrialOrIntroductoryPriceEligibility([pkg.product.identifier]);
+          if (eligibility[pkg.product.identifier]?.status === Purchases.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE) {
+            trialPackage = pkg;
+            console.log(`DEBUG: Found trial eligible package: ${pkg.identifier}`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Fallback: often the weekly package might be the one with the trial if no specific one is found
+    if (!trialPackage) {
+        trialPackage = currentOffering.weekly || currentOffering.availablePackages.find((p: PurchasesPackage) => 
+            p.packageType === Purchases.PACKAGE_TYPE.WEEKLY && 
+            p.product.subscriptionOptions?.some((opt: SubscriptionOption) => opt.freePhase !== null || opt.introPhase !== null)
+        );
+        if (trialPackage) console.log(`DEBUG: Using weekly package as potential trial package: ${trialPackage.identifier}`);
+    }
+
+    if (trialPackage) {
+      await makePurchase(trialPackage);
+    } else {
+      Alert.alert("No Trial Available", "Currently, no free trial option is available or you might not be eligible.");
+      console.warn("WARN: Could not find a suitable package for free trial.");
+    }
+  };
+
+  const purchaseWeekly = async () => {
+    const weeklyPackage = offeringsStore.offerings?.current?.weekly || 
+                          offeringsStore.offerings?.current?.availablePackages.find((p: PurchasesPackage) => p.packageType === Purchases.PACKAGE_TYPE.WEEKLY);
+    await makePurchase(weeklyPackage);
+  };
+
+  const purchaseAnnual = async () => {
+    const annualPackage = offeringsStore.offerings?.current?.annual || 
+                          offeringsStore.offerings?.current?.availablePackages.find((p: PurchasesPackage) => p.packageType === Purchases.PACKAGE_TYPE.ANNUAL);
+    await makePurchase(annualPackage);
+  };
+
+  const restorePurchases = async () => {
+    if (!isRevenueCatConfigured) {
+      Alert.alert("Error", "Purchases system is not ready. Please try again in a moment.");
+      return;
+    }
+    setIsLoading(true); 
+    try {
+      const restoreInfo = await Purchases.restorePurchases();
+      console.log("DEBUG: Purchases restored successfully:", restoreInfo.entitlements.active);
+      updateSubscriptionStatus(restoreInfo);
+      if (restoreInfo.entitlements.active[PREMIUM_ENTITLEMENT_ID]) {
+        Alert.alert("Success", "Your previous purchases have been restored.");
+      } else {
+        Alert.alert("No Purchases Found", "We couldn't find any previous purchases to restore.");
+      }
+    } catch (e: any) {
+      console.error("ERROR: Failed to restore purchases:", e);
+      Alert.alert("Error", e.message || "Failed to restore purchases. Please try again later.");
+    } finally {
+      setIsLoading(false); 
+    }
+  };
+
+  useEffect(() => {
+    setChecker(!checker);
+  }, [offeringsStore.offerings, subscribed, freeTrialAvailable]);
+
+  // When returning from a cards page, refresh to see if any categories were completed
+  useEffect(() => {
+    if (!cardsPageVisible && selectedCategoryData) {
+      console.log('Returning from cards page, checking for completed categories');
+      updateCategoryDone();
+    }
+  }, [cardsPageVisible]);
+
+  // Effect to fetch data when activeContentType changes and handle daily reset
+  useEffect(() => {
+    const fetchDataForActiveContentType = async () => {
+      if (contentTypeStore.activeContentType) {
+        // setLoadingCategories(true); 
+
+        // --- Daily progress reset logic START ---
+        const currentDate = new Date().toISOString().split('T')[0];
+        const lastResetDate = await STORAGE.getLastDailyProgressResetDate();
+
+        if (currentDate !== lastResetDate) {
+          console.log(`DEBUG: Main Effect (activeContentType change) - New day (${currentDate}), last reset was (${lastResetDate}). Resetting daily subcategory progress.`);
+          await STORAGE.resetAllSubCategoryProgress();
+          await STORAGE.setLastDailyProgressResetDate(currentDate);
+        } else {
+          console.log(`DEBUG: Main Effect (activeContentType change) - Daily subcategory progress already reset for ${currentDate}.`);
+        }
+        // --- Daily progress reset logic END ---
+        
+        console.log('Fetching categories for new activeContentType:', contentTypeStore.activeContentType);
+        try {
+          const categoriesData = await API.getCategoriesByContentType(contentTypeStore.activeContentType);
+          categoriesStore.update(categoriesData);
+          await updateCategoryDone(); 
+        } catch (error) {
+          console.error('Error fetching categories for activeContentType:', error);
+          // categoriesStore.update({}); 
+        }
+        // setLoadingCategories(false);
+      } else {
+        // No active content type, ensure categories are cleared if necessary
+        if (Object.keys(categoriesStore.categories).length > 0) {
+          console.log("DEBUG: No active content type, clearing categories from store.");
+          categoriesStore.update({});
+          await updateCategoryDone(); 
+        }
+      }
+    };
+
+    fetchDataForActiveContentType();
+  }, [contentTypeStore.activeContentType]); 
+
+  const handleClosePaywall = () => {
+    setPaywallDismissedInitially(true);
+    // Decide where to navigate the user. If they haven't seen cards yet, show them. 
+    // Otherwise, they might be closing a paywall shown later, so we might not want to force navigation.
+    if (!cardsPageVisible) {
+        setCardsPageVisible(true); // Or navigate to a default screen
+    }
+  };
+
+  // This logic will be refined based on your desired paywall flow
+  if (isLoading) { // Show loading indicator during purchase or info fetch
     return (
-      <GestureHandlerRootView>
-        <SubscriptionPageWithFreeTrial />
-      </GestureHandlerRootView>
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+        <ActivityIndicator size="large" />
+      </View>
     );
-  } else if (!subscribed) {
-    <GestureHandlerRootView>
-      <SubscriptionPageWithoutFreeTrial
-        weeklyPricePerWeek={
-          offeringsStore.offerings.all.default.weekly?.product
-            .pricePerWeekString
-        }
-        weeklyPricePerYear={
-          offeringsStore.offerings.all.default.weekly?.product
-            .pricePerYearString
-        }
-        annualPricePerWeek={
-          offeringsStore.offerings.all.default.annual?.product
-            .pricePerWeekString
-        }
-        annualPricePerYear={
-          offeringsStore.offerings.all.default.annual?.product
-            .pricePerYearString
-        }
-        purchaseWeekly={purchaseMonthly}
-        purchaseAnnual={purchaseAnnual}
-        restorePurchases={restorePurchases}
-      />
-    </GestureHandlerRootView>;
-  } else if (subscribed) {
+  }
+
+  // Main Paywall Logic
+  // Show paywall if: not subscribed AND paywall hasn't been dismissed initially AND cards page isn't already visible
+  if (!subscribed && !paywallDismissedInitially && !cardsPageVisible) {
+    if (freeTrialAvailable) {
+      return (
+        <GestureHandlerRootView style={{flex:1}}>
+          <SubscriptionPageWithFreeTrial
+            onClose={handleClosePaywall} // Pass the close handler
+          />
+        </GestureHandlerRootView>
+      );
+    } else {
+      return (
+        <GestureHandlerRootView style={{flex:1}}>
+          <SubscriptionPageWithoutFreeTrial
+            weeklyPricePerWeek={
+              (offeringsStore.offerings?.current?.weekly?.product.priceString) || ""
+            }
+            weeklyPricePerYear={ 
+              (offeringsStore.offerings?.current?.weekly?.product.priceString) || "" 
+            }
+            annualPricePerWeek={
+              (offeringsStore.offerings?.current?.annual?.product.priceString) || "" 
+            }
+            annualPricePerYear={
+              (offeringsStore.offerings?.current?.annual?.product.priceString) || "" 
+            }
+            purchaseWeekly={purchaseWeekly} 
+            purchaseAnnual={purchaseAnnual}
+            restorePurchases={restorePurchases}
+            onClose={handleClosePaywall} // Pass the close handler
+          />
+        </GestureHandlerRootView>
+      );
+    }
+  }
+  
+  // Main content for subscribed users or when navigating to cards or after paywall dismissal
+  // if (subscribed || cardsPageVisible || paywallDismissedInitially) { // Modified condition
+  // Simplified: show content if subscribed OR if navigating into cards OR paywall was dismissed
+  const showMainContent = subscribed || cardsPageVisible || paywallDismissedInitially;
+
+  if (showMainContent) {
     const categories = Object.keys(categoriesStore.categories);
     
+    if (cardsPageVisible && selectedCategoryData) {
+      return (
+        <GestureHandlerRootView style={{flex:1}}> 
+          <SwipeableCardsPage
+            checkCategoryDone={async () => await updateCategoryDone()}
+            category={selectedCategoryData.categoryName || activeTab}
+            title={selectedCategoryData.id || cardsPageTitle}
+            cardsPageVisible={cardsPageVisible}
+            close={() => {
+              setCardsPageVisible(false);
+              setSelectedCategoryData(null);
+              console.log("DEBUG: Closed SwipeableCardsPage");
+            }}
+            contentType={contentTypeStore.activeContentType}
+          />
+        </GestureHandlerRootView>
+      );
+    }
+
     console.log(`DEBUG: Main - Current categories: ${categories.join(', ')}`);
 
     const setActiveTabFooter = (value: string) => {
       console.log(`DEBUG: Main - Setting active tab to: ${value}`);
-      // We don't need to scroll horizontally anymore, just update the UI
       setActiveTab(value);
     };
 
@@ -342,7 +638,7 @@ function Main() {
                           setCardsPageTitle(key);
                           setSelectedCategoryData({
                             ...categoryItem,
-                            id: key, // Ensure the ID is passed correctly
+                            id: key, 
                             categoryName: category
                           });
                         }}
@@ -375,29 +671,14 @@ function Main() {
         {infoBottomSheetVisible && (
           <InfoPage
             closeBottomSheet={() => setInfoBottomSheetVisible(false)}
-            triggerLimitedTimeOffer={showLimitedTimeOffer} // Pass the function
+            triggerLimitedTimeOffer={showLimitedTimeOffer} 
           />
         )}
 
         {settingsBottomSheetVisible && (
           <SettingsPage
             closeBottomSheet={() => setSettingsBottomSheetVisible(false)}
-            triggerLimitedTimeOffer={showLimitedTimeOffer} // Pass the function
-          />
-        )}
-
-        {cardsPageVisible && selectedCategoryData && (
-          <SwipeableCardsPage
-            checkCategoryDone={async () => await updateCategoryDone()}
-            category={selectedCategoryData.categoryName || activeTab}
-            title={selectedCategoryData.id || cardsPageTitle}
-            cardsPageVisible={cardsPageVisible}
-            close={() => {
-              setCardsPageVisible(false);
-              setSelectedCategoryData(null);
-              console.log("DEBUG: Closed SwipeableCardsPage");
-            }}
-            contentType={contentTypeStore.activeContentType}
+            triggerLimitedTimeOffer={showLimitedTimeOffer} 
           />
         )}
 
@@ -405,22 +686,24 @@ function Main() {
           <LimitedTimeOfferModal
             weeklyPricePerWeek={
               offeringsStore.offerings?.all?.default?.weekly?.product
-                ?.pricePerWeekString || ""
+                ?.priceString || ""
             }
-            weeklyPricePerYear={
+            weeklyPricePerYear={ 
               offeringsStore.offerings?.all?.default?.weekly?.product
-                ?.pricePerYearString || ""
+                ?.priceString || "" 
             }
             annualPricePerWeek={
-              offeringsStore.offerings?.all?.sale?.annual?.product
-                ?.pricePerWeekString || ""
+              (offeringsStore.offerings?.all?.sale?.annual?.product
+                ?.priceString) || ""
             }
             annualPricePerYear={
-              offeringsStore.offerings?.all?.sale?.annual?.product
-                ?.pricePerYearString || ""
+              (offeringsStore.offerings?.all?.sale?.annual?.product
+                ?.priceString) || ""
             }
             limitedTimeOfferModalVisible={limitedTimeOfferModalVisible}
             close={async () => setLimitedTimeOfferModalVisible(false)}
+            purchaseAnnual={purchaseAnnual} // Pass existing purchaseAnnual function
+            purchaseWeekly={purchaseWeekly} // Pass existing purchaseWeekly function
           />
         )}
       </GestureHandlerRootView>
@@ -470,3 +753,6 @@ const styles = StyleSheet.create({
     paddingBottom: verticalScale(5),
   },
 });
+
+const REVENUECAT_API_KEY = 'appl_TaLTvwpygoiZhOCYceJEewBuouG';
+const PREMIUM_ENTITLEMENT_ID = 'Pro';

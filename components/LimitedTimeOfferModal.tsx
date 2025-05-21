@@ -37,13 +37,17 @@ export default function LimitedTimeOfferModal({
   weeklyPricePerYear,
   annualPricePerWeek,
   annualPricePerYear,
+  purchaseWeekly,
+  purchaseAnnual,
 }: {
   limitedTimeOfferModalVisible: boolean;
-  close: () => {};
+  close: () => void;
   weeklyPricePerWeek: string;
   weeklyPricePerYear: string;
   annualPricePerWeek: string;
   annualPricePerYear: string;
+  purchaseWeekly: () => Promise<void>;
+  purchaseAnnual: () => Promise<void>;
 }) {
   const [plan1Checked, setPlan1Checked] = useState(false);
   const [plan2Checked, setPlan2Checked] = useState(true);
@@ -101,8 +105,18 @@ export default function LimitedTimeOfferModal({
   /* countdown end */
 
   const handlePurchase = async () => {
-    // Placeholder for future IAP implementation
-    return null;
+    try {
+      if (plan1Checked) {
+        await purchaseWeekly();
+      } else if (plan2Checked) {
+        await purchaseAnnual();
+      }
+      // Optionally close the modal after purchase attempt
+      // close(); 
+    } catch (error) {
+      console.error("Purchase failed:", error);
+      // Handle error (e.g., show an alert to the user)
+    }
   };
 
   return (
@@ -255,20 +269,7 @@ export default function LimitedTimeOfferModal({
           ]}
         >
           <TouchableOpacity
-            onPress={async () => {
-              if (plan1Checked) {
-                close();
-              } else {
-                try {
-                  // Placeholder for future IAP implementation
-                  await handlePurchase();
-                  await STORAGE.setSubscriptionType("annual");
-                  close();
-                } catch (e) {
-                  console.error(e);
-                }
-              }
-            }}
+            onPress={handlePurchase}
           >
             <Text style={styles.unlockButtonText}>
               {plan1Checked

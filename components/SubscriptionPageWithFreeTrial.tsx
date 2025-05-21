@@ -23,7 +23,11 @@ const { width, height } = Dimensions.get("window");
 
 import { usePurchase } from '@/context/purchase';
 
-export default function SubscriptionPageWithFreeTrial() {
+interface SubscriptionPageWithFreeTrialProps {
+  onClose: () => void;
+}
+
+export default function SubscriptionPageWithFreeTrial({ onClose }: SubscriptionPageWithFreeTrialProps) {
   const { packages, purchasePremium, restorePurchases, isLoading } = usePurchase();
   
   // Haftalık paket bilgisini al
@@ -49,6 +53,10 @@ export default function SubscriptionPageWithFreeTrial() {
       />
 
       <View style={styles.container}>
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <Text style={styles.closeButtonText}>X</Text>
+        </TouchableOpacity>
+
         <View style={styles.header}>
           <Text style={styles.title}>
             {page === 0
@@ -449,4 +457,16 @@ const styles = StyleSheet.create({
   },
 
   seperator: { height: verticalScale(32) },
+  closeButton: {
+    position: 'absolute',
+    top: verticalScale(40), 
+    right: horizontalScale(20),
+    padding: moderateScale(10),
+    zIndex: 10, 
+  },
+  closeButtonText: {
+    color: Colors.white,
+    fontSize: moderateScale(24),
+    fontFamily: 'SFProBold',
+  }
 });
