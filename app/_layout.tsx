@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import "react-native-reanimated";
 
@@ -27,39 +28,95 @@ function AuthenticationGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [initialRouteChecked, setInitialRouteChecked] = useState(false);
 
+  // Check for dev skip flag in AsyncStorage
+  useEffect(() => {
+    const checkDevSkipFlag = async () => {
+      try {
+        const devSkipFlag = await AsyncStorage.getItem('DEV_SKIP_TO_LOGIN');
+        if (devSkipFlag === 'true') {
+          // Use the proper MobX action to set developer mode
+          userStore.setDevModeOverride(true);
+          console.log('DEV: Developer mode activated from stored flag');
+        }
+      } catch (error) {
+        console.error('Error checking dev skip flag:', error);
+      }
+    };
+    
+    checkDevSkipFlag();
+  }, []);
+
   // Handle navigation based on auth state
   useEffect(() => {
-    // Henüz yükleme tamamlanmadıysa işlem yapma
+    // Skip if still loading
     if (isLoading) return;
     
-    // İlk kontrolü yaptık mı kontrol ediyoruz
+    // Check if we've done the initial route check
     if (!initialRouteChecked) {
-      // İlk kontrol yapıldı olarak işaretle
+      // Mark initial check as done
       setInitialRouteChecked(true);
       
-      // Uygulama başlangıç mantığı:
-      // Kullanıcı giriş yapmamışsa veya segments[0] undefined ise login'e yönlendir
-      if (!user || segments[0] === undefined) {
-        if (segments[0] !== 'login') {
-          router.replace('/login');
+      // Check if we have a dev mode override
+      const hasDevOverride = userStore.devModeOverride;
+      
+      // If we're in dev mode and logged in, go directly to the main page
+      if (hasDevOverride && user) {
+        console.log('DEV: Initial navigation - Developer mode active, going to main page');
+        if (segments[0] !== undefined) {
+          router.replace('/');
         }
-      } else if (user && segments[0] === 'login') {
-        // Kullanıcı giriş yapmış ve login sayfasındaysa ana sayfaya yönlendir
+        return; // Skip all other navigation checks
+      }
+      
+      // Implement the correct flow: Free trial screen → Purchase screen → Login (if bought/started trial)
+      // First, check if user is subscribed (from userStore)
+      const isSubscribed = userStore.isSubscribed;
+      
+      // If user is subscribed but not logged in, redirect to login
+      if (isSubscribed && !user && segments[0] !== 'login') {
+        router.replace('/login');
+      }
+      // If user is subscribed and logged in, but on login page, redirect to main page
+      else if (isSubscribed && user && segments[0] === 'login') {
+        router.replace('/');
+      }
+      // If user is not subscribed, redirect to main page (which will show subscription screens)
+      else if (!isSubscribed && segments[0] !== undefined && segments[0] !== 'login') {
+        router.replace('/');
+      }
+      // If user is logged in and subscribed but not on main page, redirect to main page
+      else if (user && isSubscribed && segments[0] === undefined) {
         router.replace('/');
       }
     }
-  }, [isLoading, user, segments, router, initialRouteChecked]);
+  }, [isLoading, user, segments, router, initialRouteChecked, userStore.isSubscribed, userStore.devModeOverride]);
   
-  // Sonraki navigasyon kontrolleri için ayrı bir useEffect kullanıyoruz
+  // Additional navigation checks for subsequent navigation
   useEffect(() => {
     if (isLoading || !initialRouteChecked) return;
     
-    // Login olmadan korumalı sayfalara erişim kontrolü
-    const isInProtectedRoute = segments[0] !== 'login' && segments[0] !== undefined;
-    if (!user && isInProtectedRoute) {
-      router.replace('/login');
+    // Check if we have a dev mode override
+    const hasDevOverride = userStore.devModeOverride;
+    
+    // If we're in dev mode and logged in, don't redirect to subscription screens
+    if (hasDevOverride && user) {
+      console.log('DEV: Developer mode active - bypassing subscription checks');
+      return; // Skip all other navigation checks
     }
-  }, [user, segments, isLoading, initialRouteChecked]);
+    
+    // Protected route access control - only allow access if user is logged in AND subscribed
+    const isInProtectedRoute = segments[0] !== 'login' && segments[0] !== undefined;
+    if (isInProtectedRoute) {
+      // If not subscribed, redirect to main page (which will show subscription screens)
+      if (!userStore.isSubscribed) {
+        router.replace('/');
+      }
+      // If subscribed but not logged in, redirect to login
+      else if (userStore.isSubscribed && !user) {
+        router.replace('/login');
+      }
+    }
+  }, [user, segments, isLoading, initialRouteChecked, userStore.isSubscribed, userStore.devModeOverride]);
 
   // Yükleme ekranı
   if (isLoading) {

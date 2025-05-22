@@ -11,11 +11,11 @@ import {
   ScrollView,
   Pressable,
   Modal,
+  TextInput,
 } from "react-native";
 import { useEffect, useState } from "react";
 import * as StoreReview from "expo-store-review";
-import AntDesign from "@expo/vector-icons/AntDesign";
-import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import { Ionicons, FontAwesome6, AntDesign } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import ActionManagerScreen from "./ActionManagerScreen";
 import { observer } from "mobx-react-lite";
@@ -52,6 +52,10 @@ const SettingsPage = ({
 
   // Access subscription status from userStore
   const { isSubscribed } = userStore;
+  
+  // For testing/development purposes, hardcode subscription type
+  // This would normally come from userStore.subscriptionType
+  const [subscriptionType, setSubscriptionType] = useState('weekly');
 
   // const [subscriptionType, setSubscriptionType] = useState(""); // No longer needed
   // const [offerings, setOfferings] = useState<any>({}); // No longer used
@@ -82,17 +86,31 @@ const SettingsPage = ({
           <Text style={styles.title}>Settings</Text>
 
           <View style={styles.optionsContainer}>
-            <TouchableOpacity
-              onPress={() => setGoAnnualModalVisible(true)}
-              style={styles.settingsButton}
-            >
-              <View style={styles.settingsButtonTextContainer}>
-                <Text style={styles.settingsButtonText}>
-                  Go annual & save %55
-                </Text>
-                <Text style={styles.settingsButtonIcon}>💰</Text>
-              </View>
-            </TouchableOpacity>
+            {/* Show Go Annual button only for weekly subscribers */}
+            {isSubscribed && subscriptionType === 'weekly' ? (
+              <TouchableOpacity
+                onPress={() => setGoAnnualModalVisible(true)}
+                style={styles.settingsButton}
+              >
+                <View style={styles.settingsButtonTextContainer}>
+                  <Text style={styles.settingsButtonText}>
+                    Go annual & save %55
+                  </Text>
+                  <Text style={styles.settingsButtonIcon}>💰</Text>
+                </View>
+              </TouchableOpacity>
+            ) : isSubscribed && subscriptionType === 'annual' ? (
+              <TouchableOpacity
+                style={styles.settingsButton}
+              >
+                <View style={styles.settingsButtonTextContainer}>
+                  <Text style={styles.settingsButtonText}>
+                    You're on annual plan!
+                  </Text>
+                  <Text style={styles.settingsButtonIcon}>✅</Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               onPress={async () => {
@@ -189,33 +207,43 @@ const SettingsPage = ({
             }}
           />
           <Modal
-            transparent
+            transparent={true}
             animationType="slide"
             visible={messageSheetVisible}
             onRequestClose={() => setMessageSheetVisible(false)}
           >
             <View style={styles.messageSheetView}>
-              <Text style={styles.messageSheetTitle}>Send us a message!</Text>
-              <View style={styles.messageSheetContainer}>
-                <TouchableOpacity
-                  style={styles.messageSheetButtonContainer}
-                  onPress={() => {
-                    Linking.openURL("https://t.me/+KclC525nvhowYjU0");
-                    setMessageSheetVisible(false);
-                  }}
-                >
-                  <Image
-                    source={require("@/assets/images/telegram.png")}
-                    style={styles.messageSheetButtonImage}
-                  />
-                  <Text style={styles.messageSheetButtonTitle}>Telegram</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
+              <TouchableOpacity 
+                style={styles.closeIcon}
                 onPress={() => setMessageSheetVisible(false)}
-                style={styles.messageSheetCloseButton}
               >
-                <Text style={styles.messageSheetCloseButtonText}>Back</Text>
+                <AntDesign name="close" size={24} color="black" />
+              </TouchableOpacity>
+              
+              <Text style={styles.feedbackTitle}>Could you tell us your experience with the Winspire?</Text>
+              <Text style={styles.feedbackSubtitle}>Please share your story in detail</Text>
+              
+              <TextInput
+                style={styles.feedbackInput}
+                multiline={true}
+                numberOfLines={6}
+                placeholder=""
+                placeholderTextColor="#999"
+              />
+              
+              <View style={styles.paginationDots}>
+                <View style={[styles.paginationDot, { backgroundColor: '#e0e0e0' }]} />
+                <View style={[styles.paginationDot, { backgroundColor: '#ff0000' }]} />
+              </View>
+              
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={() => {
+                  // Submit feedback logic here
+                  setMessageSheetVisible(false);
+                }}
+              >
+                <Text style={styles.submitButtonText}>Submit feedback</Text>
               </TouchableOpacity>
             </View>
           </Modal>
@@ -346,41 +374,89 @@ const styles = StyleSheet.create({
   // Styles for MessageSheet Modal (mostly unchanged, review if needed)
   messageSheetView: {
     flex: 1,
+    backgroundColor: "white",
+    borderTopLeftRadius: moderateScale(15),
+    borderTopRightRadius: moderateScale(15),
+    padding: moderateScale(20),
     alignItems: "center",
-    gap: verticalScale(40),
-    backgroundColor: Colors.darkGray,
-    paddingVertical: verticalScale(20),
   },
-  messageSheetTitle: {
-    color: Colors.white,
+  closeIcon: {
+    position: "absolute",
+    top: verticalScale(20),
+    left: horizontalScale(20),
+    zIndex: 10,
+  },
+  feedbackTitle: {
+    fontSize: moderateScale(24),
     fontFamily: "SFProBold",
-    fontSize: moderateScale(26),
+    textAlign: "center",
+    marginTop: verticalScale(50),
+    marginBottom: verticalScale(10),
+    paddingHorizontal: horizontalScale(20),
   },
-  messageSheetContainer: {
+  feedbackSubtitle: {
+    fontSize: moderateScale(16),
+    fontFamily: "SFProRegular",
+    color: "#666",
+    textAlign: "center",
+    marginBottom: verticalScale(30),
+  },
+  feedbackInput: {
+    width: "90%",
+    height: verticalScale(150),
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: moderateScale(10),
+    padding: moderateScale(15),
+    textAlignVertical: "top",
+    marginBottom: verticalScale(30),
+  },
+  paginationDots: {
     flexDirection: "row",
-    gap: horizontalScale(32),
+    justifyContent: "center",
+    marginBottom: verticalScale(30),
   },
-  messageSheetButtonContainer: { alignItems: "center", gap: verticalScale(8) },
-  messageSheetButton: {
-    width: verticalScale(80),
-    height: verticalScale(80),
-    borderRadius: moderateScale(40),
+  paginationDot: {
+    width: horizontalScale(10),
+    height: horizontalScale(10),
+    borderRadius: horizontalScale(5),
+    marginHorizontal: horizontalScale(5),
   },
-  messageSheetButtonImage: {
-    width: verticalScale(80),
-    height: verticalScale(80),
-    borderRadius: moderateScale(40),
-  },
-  messageSheetButtonTitle: {
-    color: Colors.white,
-    fontFamily: "SFProMedium",
-    fontSize: moderateScale(18),
-  },
-  messageSheetCloseButton: {
+  submitButton: {
+    backgroundColor: "#e0e0e0",
+    paddingVertical: verticalScale(15),
+    borderRadius: moderateScale(25),
     width: "90%",
     alignItems: "center",
+  },
+  submitButtonText: {
+    color: "black",
+    fontSize: moderateScale(16),
+    fontFamily: "SFProBold",
+  },
+  messageSheetContainer: {
+    alignItems: "center",
     justifyContent: "center",
+    marginBottom: verticalScale(20),
+  },
+  messageSheetButtonContainer: {
+    alignItems: "center",
+    marginBottom: verticalScale(15),
+  },
+  messageSheetButtonImage: {
+    width: horizontalScale(60),
     height: verticalScale(60),
+    marginBottom: verticalScale(10),
+  },
+  messageSheetButtonTitle: {
+    fontSize: moderateScale(16),
+    fontFamily: "SFProMedium",
+  },
+  messageSheetCloseButton: {
+    backgroundColor: Colors.gray,
+    paddingVertical: verticalScale(15),
+    width: "100%",
+    alignItems: "center",
     borderColor: Colors.white,
     borderWidth: moderateScale(1),
     borderRadius: moderateScale(30),

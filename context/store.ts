@@ -1,5 +1,6 @@
 import { makeAutoObservable } from "mobx";
 import { STORAGE } from '@/utils/storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 class CATEGORIES_STORE {
   categories: Record<string, any> = {};
@@ -105,15 +106,46 @@ export const contentTypeStore = new CONTENT_TYPE_STORE();
 class USER_STORE {
   isSubscribed: boolean = false;
   userId: string | null = null;
+  devModeOverride: boolean = false; // New flag for developer mode override
   // You can add other user-specific properties here, e.g., email, etc.
 
   constructor() {
-    makeAutoObservable(this);
+    makeAutoObservable(this, {}, { autoBind: true });
+    // Check for dev mode override on initialization
+    this.checkDevModeOverride();
+  }
+
+  // MobX action to set dev mode override
+  setDevModeOverride(value: boolean) {
+    this.devModeOverride = value;
+    if (value) {
+      this.isSubscribed = true;
+      console.log("DEBUG: Developer mode override set to", value);
+    }
+  }
+
+  // Check for developer mode override in AsyncStorage
+  async checkDevModeOverride() {
+    try {
+      const value = await AsyncStorage.getItem('DEV_SKIP_TO_LOGIN');
+      if (value === 'true') {
+        this.setDevModeOverride(true);
+        console.log("DEBUG: Developer mode override enabled - subscription forced to true");
+      }
+    } catch (error) {
+      console.error("Error checking dev mode override:", error);
+    }
   }
 
   setIsSubscribed(status: boolean) {
-    this.isSubscribed = status;
-    console.log("DEBUG: User subscribed status updated in store:", status);
+    // If dev mode override is enabled, always keep subscription as true
+    if (this.devModeOverride) {
+      this.isSubscribed = true;
+      console.log("DEBUG: Subscription status override - forced to true by dev mode");
+    } else {
+      this.isSubscribed = status;
+      console.log("DEBUG: User subscribed status updated in store:", status);
+    }
   }
 
   setUserData(userData: { id: string; [key: string]: any }) {

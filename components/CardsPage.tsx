@@ -316,40 +316,52 @@ export default observer(function CardsPage({
           />
         </View>
 
-        {showPageNumberContainer && (
-          <View style={styles.pageNumberContainer}>
-            <Text style={styles.pageNumberText}>
-              {pageNumber} / {cardsToDisplay.length}
-            </Text>
-          </View>
-        )}
+        <View style={styles.pageNumberContainer}>
+          <Text style={styles.pageNumberText}>
+            {pageNumber}/{cardsToDisplay.length}
+          </Text>
+        </View>
 
-        <ScrollView
-          horizontal
-          pagingEnabled
-          ref={scrollViewRef}
-          showsHorizontalScrollIndicator={false}
-          onScroll={async (event) => {
-            const currentPage = Math.round(
-              event.nativeEvent.contentOffset.x / width
-            );
+        <View style={styles.cardAndDotsContainer}>
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            decelerationRate={0.7} // Lower value for faster deceleration
+            snapToInterval={width}
+            snapToAlignment="center"
+            snapToOffsets={[...Array(cardsToDisplay.length)].map((_, i) => i * width)}
+            disableIntervalMomentum={true} // Prevents multiple pages scrolling
+            onMomentumScrollEnd={async (event) => {
+              const offsetX = event.nativeEvent.contentOffset.x;
+              const newPageNumber = Math.floor(offsetX / width) + 1;
+              if (newPageNumber !== pageNumber) {
+                setPageNumber(newPageNumber);
+              }
 
-            setPageNumber(currentPage + 1);
-
-            if (
-              currentPage === cardsToDisplay.length - 1
-            ) {
-              await STORAGE.setCategoryDone(category, parseInt(title));
-
-              checkCategoryDone();
-            }
-          }}
-        >
-          {getCards()}
-        </ScrollView>
-
+              if (newPageNumber === cardsToDisplay.length) {
+                // If last card, mark the category as done
+                await STORAGE.setCategoryDone(category, parseInt(title));
+                checkCategoryDone();
+                
+                // Reduced delay before closing to speed up navigation
+                setTimeout(() => {
+                  close();
+                }, 300); // Reduced from 1000ms to 300ms
+              }
+            }}
+          >
+            {getCards()}
+          </ScrollView>
+        </View>
+        
+        {/* Absolutely positioned dots */}
+        <View style={styles.absoluteDotsContainer}>
+          <View style={styles.dotsRow}>{getDots()}</View>
+        </View>
+        
         <View style={styles.footerContainer}>
-          <View style={styles.footerDotsContainer}>{getDots()}</View>
 
           <View style={styles.footerButtonsContainer}>
             {pageNumber > 1 ? (
@@ -445,19 +457,19 @@ const styles = StyleSheet.create({
     zIndex: 99,
     position: "absolute",
     alignItems: "center",
-    top: verticalScale(130),
+    top: verticalScale(120),
     justifyContent: "center",
-    height: verticalScale(22),
+    height: verticalScale(20),
     right: horizontalScale(10),
-    width: horizontalScale(52),
+    width: horizontalScale(45),
     borderRadius: moderateScale(10),
-    backgroundColor: Colors.lightGray2,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
 
   pageNumberText: {
     color: Colors.white,
     fontFamily: "SFProBold",
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(12),
   },
 
   cardsContainer: {
@@ -466,22 +478,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     height: verticalScale(532),
     backgroundColor: Colors.cardBackground,
+    marginBottom: 0,
+    paddingBottom: 0,
+  },
+  
+  cardAndDotsContainer: {
+    width: "100%",
+    alignItems: "center",
+    backgroundColor: 'transparent', // Use page background from parent
+  },
+  
+  absoluteDotsContainer: {
+    position: 'absolute',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Position exactly as shown in the screenshot - right in the middle of the black space
+    bottom: Platform.OS === 'ios' ? 
+      verticalScale(130) : // Position from bottom for iOS
+      verticalScale(120),  // Position from bottom for Android
+    zIndex: 100,
+  },
+  
+  dotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: horizontalScale(3),
+    justifyContent: "center",
+    width: '100%', // Ensure it spans width for centering dots
+    paddingVertical: verticalScale(10), // Space above/below the dots themselves
+    // marginTop: verticalScale(30), // Removed, centering handled by parent
   },
 
   footerContainer: {
     width: "100%",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: verticalScale(20),
     paddingHorizontal: horizontalScale(20),
-    height: Platform.OS === "ios" ? verticalScale(220) : verticalScale(200),
-  },
-
-  footerDotsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: horizontalScale(6),
-    justifyContent: "center",
+    height: verticalScale(40),
+    position: "absolute",
+    bottom: Platform.OS === "ios" ? verticalScale(120) : verticalScale(130),
+    zIndex: 999,
   },
 
   footerDot: {

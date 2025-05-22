@@ -397,4 +397,29 @@ export const STORAGE = {
     const key = getUserSpecificKey('last_daily_progress_reset_date');
     await AsyncStorage.setItem(key, date);
   },
+  
+  // Store categories for a content type to track completion across content types
+  storeCategoriesForContentType: async (contentType: string, categories: string[]) => {
+    if (!categories || categories.length === 0) return;
+    
+    const key = getUserSpecificKey(`content_type_categories_${contentType}`);
+    await AsyncStorage.setItem(key, JSON.stringify(categories));
+    console.log(`DEBUG: Stored ${categories.length} categories for content type ${contentType}`);
+  },
+  
+  // Get all categories for a specific content type
+  getAllCategoriesForContentType: async (contentType: string) => {
+    const key = getUserSpecificKey(`content_type_categories_${contentType}`);
+    const value = await AsyncStorage.getItem(key);
+    
+    if (!value) return [];
+    
+    try {
+      const categories = JSON.parse(value);
+      return Array.isArray(categories) ? categories : [];
+    } catch (error) {
+      console.error(`Error parsing categories for ${contentType}:`, error);
+      return [];
+    }
+  },
 };

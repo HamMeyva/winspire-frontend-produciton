@@ -52,9 +52,10 @@ export default function GoAnnualModal({
   const weeklyPackage = packages.find((p) => p.packageType === "WEEKLY");
 
   const handlePurchase = async () => {
-    const packageToPurchase = selectedPlan === "ANNUAL" ? annualPackage : weeklyPackage;
+    // Always use the annual package for consistency between InfoPage and SettingsPage
+    const packageToPurchase = annualPackage;
     if (!packageToPurchase) {
-      console.error("Selected package not found");
+      console.error("Annual package not found");
       close(false); // Close if package not found
       return;
     }
@@ -66,11 +67,13 @@ export default function GoAnnualModal({
       // However, for the modal closing logic:
       if (isPremium) { // Check isPremium state after purchase attempt
         userStore.setIsSubscribed(true); // This should ideally be driven by entitlement updates
+        // Set subscription type to annual
+        await STORAGE.setSubscriptionType('annual');
         close(true); // Close modal on successful purchase indication
       } else {
         // If not immediately premium (e.g. purchase failed, or status update is delayed)
         // Still close the modal to not leave the user hanging.
-        // The parent component (SettingsPage) will decide if LTO should be shown.
+        // The parent component will decide if LTO should be shown.
         close(false); 
       }
     } catch (error) {

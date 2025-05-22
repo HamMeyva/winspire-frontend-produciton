@@ -11,50 +11,28 @@ interface ProgressBarProps {
 }
 
 export default function ProgressBar({ completedCount, totalCount }: ProgressBarProps) {
-  // Calculate progress percentage (prevent division by zero)
-  const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-  
-  return (
-    <View style={styles.container}>
-      <View style={styles.progressBarContainer}>
-        <View 
-          style={[
-            styles.progressFill, 
-            { width: `${progressPercentage}%` }
-          ]} 
-        />
-      </View>
-      <Text style={styles.progressText}>
-        {completedCount}/{totalCount} Tamamlandı
-      </Text>
-    </View>
-  );
+  // This component is now hidden since we're using the progress bar in the Header component
+  // to avoid having duplicate progress bars
+  return null;
 }
 
 const styles = StyleSheet.create({
   container: {
     width: '100%',
     paddingHorizontal: horizontalScale(20),
-    marginBottom: verticalScale(16),
+    marginBottom: verticalScale(10),
     marginTop: verticalScale(5),
   },
   progressBarContainer: {
     width: '100%',
-    height: verticalScale(10),
+    height: verticalScale(5),
     backgroundColor: '#333333',
-    borderRadius: moderateScale(5),
+    borderRadius: moderateScale(2.5),
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: Colors.green,
-    borderRadius: moderateScale(5),
-  },
-  progressText: {
-    marginTop: verticalScale(5),
-    fontSize: moderateScale(12),
-    color: Colors.white,
-    fontFamily: 'SFProMedium',
-    textAlign: 'center',
+    borderRadius: moderateScale(2.5),
   }
 });

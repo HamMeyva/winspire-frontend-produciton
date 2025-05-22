@@ -7,7 +7,9 @@ import {
   Text,
   RefreshControl,
   ActivityIndicator, // Added ActivityIndicator
+  TouchableOpacity,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { observer } from "mobx-react-lite";
 import React, { useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -45,6 +47,7 @@ import {
   contentTypeStore,
   userStore
 } from "@/context/store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // utils
 import { STORAGE } from "@/utils/storage";
@@ -53,6 +56,7 @@ import { API } from "@/utils/api";
 const { width } = Dimensions.get("screen");
 
 function Main() {
+  const router = useRouter();
   const scrollViewRef = useRef<any>(null);
 
   const [isRevenueCatConfigured, setIsRevenueCatConfigured] = useState(false);
@@ -62,6 +66,8 @@ function Main() {
   const [subscribed, setSubscribed] = useState(userStore.isSubscribed); 
   const [freeTrialAvailable, setFreeTrialAvailable] = useState(false);
   const [paywallDismissedInitially, setPaywallDismissedInitially] = useState(false);
+  // State to track which screen to show in the flow
+  const [currentScreen, setCurrentScreen] = useState<'freeTrial' | 'purchase' | 'login'>('freeTrial');
 
   const [infoBottomSheetVisible, setInfoBottomSheetVisible] = useState<boolean>(false);
   const [settingsBottomSheetVisible, setSettingsBottomSheetVisible] = useState<boolean>(false);
@@ -139,6 +145,12 @@ function Main() {
     }
   }, [cardsPageVisible]);
   
+  // Calculate total completion for progress bar (always out of 20 subcategories)
+  const getTotalCompletion = () => {
+    const completedCount = categoryDone.filter(value => value === "true").length;
+    return { completedCount, totalCount: 20 };
+  };
+  
 
   // Effect to initialize RevenueCat and set up listener
   useEffect(() => {
@@ -197,6 +209,15 @@ function Main() {
 
   // Function to update subscription status based on RevenueCat CustomerInfo
   const updateSubscriptionStatus = (customerInfo: CustomerInfo) => { 
+    // Check for developer mode override first
+    if (userStore.devModeOverride) {
+      // If developer mode is active, keep subscription status as true
+      setSubscribed(true);
+      console.log(`DEBUG: updateSubscriptionStatus - Developer mode active, keeping subscription status as true`);
+      return;
+    }
+    
+    // Normal flow for non-developer mode
     const isActive = typeof customerInfo.entitlements.active[PREMIUM_ENTITLEMENT_ID] !== "undefined";
     userStore.setIsSubscribed(isActive); 
     setSubscribed(isActive); 
@@ -207,6 +228,14 @@ function Main() {
 
 
   const getCustomerInfo = async () => {
+    // Check for developer mode override first
+    if (userStore.devModeOverride) {
+      console.log("DEV: Developer mode active - bypassing subscription checks");
+      setSubscribed(true);
+      setIsLoading(false);
+      return;
+    }
+    
     if (!isRevenueCatConfigured) {
       console.log("DEBUG: RevenueCat not configured yet, skipping getCustomerInfo.");
       return;
@@ -482,8 +511,8 @@ function Main() {
     }
   };
 
-  // This logic will be refined based on your desired paywall flow
-  if (isLoading) { // Show loading indicator during purchase or info fetch
+  // Show loading indicator during purchase or info fetch
+  if (isLoading) { 
     return (
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
         <ActivityIndicator size="large" />
@@ -491,47 +520,102 @@ function Main() {
     );
   }
 
-  // Main Paywall Logic
-  // Show paywall if: not subscribed AND paywall hasn't been dismissed initially AND cards page isn't already visible
-  if (!subscribed && !paywallDismissedInitially && !cardsPageVisible) {
-    if (freeTrialAvailable) {
+  // Dev function to skip to login
+  const skipToLogin = async () => {
+    console.log('DEV: Activating developer mode to skip to login');
+    
+    // For development only - skip to login even if not subscribed
+    setPaywallDismissedInitially(true);
+    setSubscribed(true); // Pretend the user is subscribed to bypass subscription checks
+    
+    // Persist the subscription status in AsyncStorage
+    try {
+      // Set the dev mode flag in AsyncStorage
+      await AsyncStorage.setItem('DEV_SKIP_TO_LOGIN', 'true');
+      console.log('DEV: Saved subscription bypass flag to AsyncStorage');
+      
+      // Use the proper MobX action to update the userStore
+      userStore.setDevModeOverride(true);
+      console.log('DEV: Enabled developer mode in userStore');
+      
+      // Navigate to login with a small delay to ensure state updates are processed
+      setTimeout(() => {
+        router.replace('/login');
+      }, 300); // Increased delay to ensure state propagation
+    } catch (error) {
+      console.error('Error in skipToLogin:', error);
+      // Try to navigate anyway
+      router.replace('/login');
+    }
+  };
+
+  // Implement the correct flow: Free trial screen → Purchase screen → Login (if bought/started trial)
+  if (!subscribed) {
+    if (currentScreen === 'freeTrial') {
+      // Step 1: Free trial screen
       return (
-        <GestureHandlerRootView style={{flex:1}}>
+        <GestureHandlerRootView>
           <SubscriptionPageWithFreeTrial
-            onClose={handleClosePaywall} // Pass the close handler
+            purchase={() => {
+              // After free trial screen, show purchase screen
+              setCurrentScreen('purchase');
+            }}
+            pricePerWeek={
+              offeringsStore.offerings?.current?.weekly?.product.priceString || "$6.99"
+            }
+            restorePurchases={restorePurchases}
           />
         </GestureHandlerRootView>
       );
-    } else {
+    } else if (currentScreen === 'purchase') {
+      // Step 2: Regular purchase screen (without free trial)
       return (
-        <GestureHandlerRootView style={{flex:1}}>
-          <SubscriptionPageWithoutFreeTrial
-            weeklyPricePerWeek={
-              (offeringsStore.offerings?.current?.weekly?.product.priceString) || ""
-            }
-            weeklyPricePerYear={ 
-              (offeringsStore.offerings?.current?.weekly?.product.priceString) || "" 
-            }
-            annualPricePerWeek={
-              (offeringsStore.offerings?.current?.annual?.product.priceString) || "" 
-            }
-            annualPricePerYear={
-              (offeringsStore.offerings?.current?.annual?.product.priceString) || "" 
-            }
-            purchaseWeekly={purchaseWeekly} 
-            purchaseAnnual={purchaseAnnual}
-            restorePurchases={restorePurchases}
-            onClose={handleClosePaywall} // Pass the close handler
-          />
+        <GestureHandlerRootView>
+          <View style={{flex: 1}}>
+            {/* X button to skip to login (dev feature) */}
+            <TouchableOpacity 
+              style={{
+                position: 'absolute', 
+                top: 50, 
+                right: 20, 
+                zIndex: 999,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }} 
+              onPress={skipToLogin}
+            >
+              <Text style={{color: 'white', fontSize: 20, fontWeight: 'bold'}}>X</Text>
+            </TouchableOpacity>
+            
+            <SubscriptionPageWithoutFreeTrial
+              weeklyPricePerWeek={
+                offeringsStore.offerings?.current?.weekly?.product.priceString || "$6.99"
+              }
+              weeklyPricePerYear={ 
+                offeringsStore.offerings?.current?.weekly?.product.priceString || "$359.88" 
+              }
+              annualPricePerWeek={
+                offeringsStore.offerings?.current?.annual?.product.priceString || "$2.99" 
+              }
+              annualPricePerYear={
+                offeringsStore.offerings?.current?.annual?.product.priceString || "$149.99" 
+              }
+              purchaseWeekly={purchaseWeekly} 
+              purchaseAnnual={purchaseAnnual}
+              restorePurchases={restorePurchases}
+            />
+          </View>
         </GestureHandlerRootView>
       );
     }
   }
   
-  // Main content for subscribed users or when navigating to cards or after paywall dismissal
-  // if (subscribed || cardsPageVisible || paywallDismissedInitially) { // Modified condition
-  // Simplified: show content if subscribed OR if navigating into cards OR paywall was dismissed
-  const showMainContent = subscribed || cardsPageVisible || paywallDismissedInitially;
+  // Step 3: Main content for subscribed users (after login/purchase)
+  const showMainContent = subscribed;
 
   if (showMainContent) {
     const categories = Object.keys(categoriesStore.categories);
@@ -575,6 +659,12 @@ function Main() {
               setSettingsBottomSheetVisible(true);
             }
           }}
+        />
+        
+        {/* Progress Bar */}
+        <ProgressBar 
+          completedCount={getTotalCompletion().completedCount}
+          totalCount={getTotalCompletion().totalCount}
         />
         
 
@@ -660,7 +750,7 @@ function Main() {
                 fontSize: moderateScale(16),
                 padding: horizontalScale(20)
               }}>
-                Lütfen içerik türü seçin veya kategorilerin yüklenmesini bekleyin
+                Please select a content type or wait for categories to load
               </Text>
             </View>
           )}

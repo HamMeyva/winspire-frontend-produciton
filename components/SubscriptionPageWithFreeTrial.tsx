@@ -3,12 +3,16 @@ import {
   Text,
   StyleSheet,
   Dimensions,
-  Image,
   TouchableOpacity,
+  Image,
+  ScrollView,
+  Modal,
+  Pressable,
+  FlatList,
 } from "react-native";
 import { useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView } from "react-native-gesture-handler";
+import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 
 // constants
@@ -21,24 +25,15 @@ import { Colors } from "@/constants/Colors";
 
 const { width, height } = Dimensions.get("window");
 
-import { usePurchase } from '@/context/purchase';
-
-interface SubscriptionPageWithFreeTrialProps {
-  onClose: () => void;
-}
-
-export default function SubscriptionPageWithFreeTrial({ onClose }: SubscriptionPageWithFreeTrialProps) {
-  const { packages, purchasePremium, restorePurchases, isLoading } = usePurchase();
-  
-  // Haftalık paket bilgisini al
-  const weeklyPackage = packages.find(pkg => pkg.identifier.includes('weekly') || pkg.identifier.includes('week'));
-  const pricePerWeek = weeklyPackage?.product?.priceString || "$6.99";
-  
-  const handlePurchase = async () => {
-    if (weeklyPackage) {
-      await purchasePremium(weeklyPackage);
-    }
-  };
+export default function SubscriptionPageWithFreeTrial({
+  purchase,
+  pricePerWeek,
+  restorePurchases,
+}: {
+  purchase: () => void;
+  pricePerWeek: string;
+  restorePurchases: () => void;
+}) {
   const [page, setPage] = useState(0);
 
   const [privacyPolicySheetVisible, setPrivacyPolicySheetVisible] =
@@ -53,9 +48,6 @@ export default function SubscriptionPageWithFreeTrial({ onClose }: SubscriptionP
       />
 
       <View style={styles.container}>
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeButtonText}>X</Text>
-        </TouchableOpacity>
 
         <View style={styles.header}>
           <Text style={styles.title}>
@@ -77,18 +69,15 @@ export default function SubscriptionPageWithFreeTrial({ onClose }: SubscriptionP
 
         <View style={styles.pagesContainer}>
           <ScrollView
-            showsHorizontalScrollIndicator={false}
-            pagingEnabled
             horizontal
-            onScroll={async (event) => {
-              if (event.nativeEvent.contentOffset.x === 0) {
-                setPage(0);
-              } else if (event.nativeEvent.contentOffset.x / width === 1) {
-                setPage(1);
-              } else if (event.nativeEvent.contentOffset.x / width === 2) {
-                setPage(2);
-              }
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={(event: any) => {
+              const offsetX = event.nativeEvent.contentOffset.x;
+              const page = Math.floor(offsetX / width);
+              setPage(page);
             }}
+            scrollEventThrottle={16}
           >
             <View style={styles.pageContainer}>
               <Image
@@ -97,7 +86,7 @@ export default function SubscriptionPageWithFreeTrial({ onClose }: SubscriptionP
                 source={require("@/assets/images/pages/page-1.png")}
               />
             </View>
-
+            
             <View style={styles.pageContainer}>
               <Image
                 style={styles.pageImage}
@@ -105,7 +94,7 @@ export default function SubscriptionPageWithFreeTrial({ onClose }: SubscriptionP
                 source={require("@/assets/images/pages/page-2.png")}
               />
             </View>
-
+            
             <View style={styles.pageContainer}>
               <Image
                 style={styles.pageImage}
@@ -160,14 +149,8 @@ export default function SubscriptionPageWithFreeTrial({ onClose }: SubscriptionP
           </Text>
         </Text>
 
-        <TouchableOpacity 
-          onPress={handlePurchase} 
-          disabled={isLoading} 
-          style={[styles.unlockButton, isLoading && { opacity: 0.7 }]}
-        >
-          <Text style={styles.unlockButtonText}>
-            {isLoading ? "Processing..." : "Try For Free 🚀"}
-          </Text>
+        <TouchableOpacity onPress={purchase} style={styles.unlockButton}>
+          <Text style={styles.unlockButtonText}>Try For Free 🚀</Text>
         </TouchableOpacity>
 
         <Text style={styles.infoText}>
@@ -364,11 +347,15 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(16),
   },
 
-  pagesContainer: { height: height * 0.5, marginTop: verticalScale(16) },
+  pagesContainer: { 
+    height: height * 0.5, 
+    marginTop: verticalScale(16) 
+  },
 
   pageContainer: {
     width: width,
     alignItems: "center",
+    justifyContent: "center",
   },
 
   pageImage: {

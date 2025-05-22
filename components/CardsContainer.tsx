@@ -6,9 +6,10 @@ import {
   Dimensions,
   ScrollView,
   Animated,
+  Easing,
 } from "react-native";
 import { useState, useRef, useEffect } from "react";
-import { PanGestureHandler } from "react-native-gesture-handler";
+import { PanGestureHandler, State } from "react-native-gesture-handler";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 // constants
@@ -172,56 +173,85 @@ export default function CardsContainer({
   };
 
   // Function to handle when user releases the card
-  const onHandlerStateChange = (event: any) => {
-    // Swipe threshold
-    const swipeThreshold = 120;
-    
-    if (event.nativeEvent.oldState === 4) {
-      const { translationX, translationY } = event.nativeEvent;
+  const onHandlerStateChange = async (event: any) => {
+    if (event.nativeEvent.oldState === State.ACTIVE) {
+      const translationX = event.nativeEvent.translationX;
+      const translationY = event.nativeEvent.translationY;
       
-      // Determine if it's a right swipe (like)
-      if (translationX > swipeThreshold) {
-        Animated.timing(translateX, {
-          toValue: width + 100,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          saveSwipeAction('like');
-        });
+      // Calculate the absolute distance moved
+      const absoluteX = Math.abs(translationX);
+      const absoluteY = Math.abs(translationY);
+      
+      // Determine if this is a significant swipe (more horizontal than vertical)
+      const isHorizontalSwipe = absoluteX > absoluteY;
+      
+      let action: 'like' | 'dislike' | 'maybe' | null = null;
+      let targetX = 0;
+      let targetY = 0;
+      
+      // Use lower threshold for swipe detection to make it more responsive
+      // If it's a significant horizontal swipe
+      if (isHorizontalSwipe && absoluteX > 50) { // Reduced threshold from 100 to 50
+        if (translationX > 0) {
+          // Swiped right = Like
+          action = 'like';
+          targetX = width * 1.5; // Move further off screen to ensure card disappears
+        } else {
+          // Swiped left = Dislike
+          action = 'dislike';
+          targetX = -width * 1.5; // Move further off screen to ensure card disappears
+        }
       } 
-      // Determine if it's a left swipe (dislike)
-      else if (translationX < -swipeThreshold) {
-        Animated.timing(translateX, {
-          toValue: -width - 100,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          saveSwipeAction('dislike');
+      // If it's a significant vertical swipe
+      else if (!isHorizontalSwipe && absoluteY > 50 && translationY < 0) { // Reduced threshold
+        // Swiped up = Maybe
+        action = 'maybe';
+        targetY = -height * 0.5; // Move up instead of horizontally
+      }
+      
+      if (action) {
+        // Complete the swipe animation with ultra-fast duration
+        Animated.parallel([
+          Animated.timing(translateX, {
+            toValue: targetX,
+            duration: 100, // Ultra fast animation
+            useNativeDriver: true,
+            easing: Easing.out(Easing.quad) // Faster easing function
+          }),
+          Animated.timing(translateY, {
+            toValue: targetY,
+            duration: 100, // Ultra fast animation
+            useNativeDriver: true,
+            easing: Easing.out(Easing.quad) // Faster easing function
+          }),
+          Animated.timing(cardOpacity, {
+            toValue: 0,
+            duration: 80, // Extremely fast fade
+            useNativeDriver: true,
+          })
+        ]).start(() => {
+          // Immediately trigger the next action for responsiveness
+          saveSwipeAction(action!);
+          if (onSwipeComplete) setTimeout(onSwipeComplete, 0); // Use setTimeout with 0ms to improve perceived performance
         });
-      } 
-      // Determine if it's an up swipe (maybe)
-      else if (translationY < -swipeThreshold) {
-        Animated.timing(translateY, {
-          toValue: -height - 100,
-          duration: 200,
-          useNativeDriver: true,
-        }).start(() => {
-          saveSwipeAction('maybe');
-        });
-      } 
-      // Reset position if no valid swipe
-      else {
+        
+        // Update UI to show the swipe status overlay during animation
+        setSwipeStatus(action);
+      } else {
+        // Not a significant swipe, return card to center with ultra-fast spring
         Animated.parallel([
           Animated.spring(translateX, {
             toValue: 0,
-            friction: 5,
+            friction: 12, // Even more friction for immediate return
+            tension: 80, // Much higher tension for snappy return
             useNativeDriver: true,
           }),
           Animated.spring(translateY, {
             toValue: 0,
-            friction: 5,
+            friction: 12, // Even more friction for immediate return
+            tension: 80, // Much higher tension for snappy return
             useNativeDriver: true,
-          }),
+          })
         ]).start();
       }
     }
@@ -335,46 +365,50 @@ const styles = StyleSheet.create({
   },
 
   container: {
-    width: "84%",
+    width: "90%",
     alignItems: "center",
-    borderColor: Colors.black,
-    height: verticalScale(440),
-    maxHeight: verticalScale(440),
-    borderWidth: moderateScale(4),
+    height: verticalScale(500),
+    maxHeight: verticalScale(500),
     backgroundColor: Colors.white,
-    borderRadius: moderateScale(12),
+    borderRadius: moderateScale(16),
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 
   scrollContainer: {
     justifyContent: "center",
-    minHeight: verticalScale(420),
+    minHeight: verticalScale(460),
+    width: "100%",
   },
   
   cardText: {
     color: Colors.black,
-    textAlign: "center",
+    textAlign: "left",
     fontFamily: "SFProMedium",
-    fontSize: moderateScale(18),
+    fontSize: moderateScale(20),
     paddingVertical: verticalScale(20),
-    paddingHorizontal: horizontalScale(20),
+    paddingHorizontal: horizontalScale(24),
+    lineHeight: moderateScale(28),
   },
 
   cardFooter: {
-    width: "101%",
+    width: "100%",
     position: "absolute",
     alignItems: "center",
     justifyContent: "center",
-    bottom: verticalScale(-5),
-    height: verticalScale(50),
+    bottom: 0,
+    height: verticalScale(40),
     backgroundColor: Colors.black,
-    borderBottomLeftRadius: moderateScale(12),
-    borderBottomRightRadius: moderateScale(12),
   },
 
   cardFooterImage: {
-    height: verticalScale(50),
-    width: horizontalScale(100),
+    height: verticalScale(20),
+    width: horizontalScale(90),
+    resizeMode: "contain",
   },
   
   overlayContainer: {
@@ -398,18 +432,18 @@ const styles = StyleSheet.create({
   likeOverlay: {
     borderColor: "green",
     borderWidth: moderateScale(4),
-    borderRadius: moderateScale(12),
+    borderRadius: moderateScale(16),
   },
   
   dislikeOverlay: {
     borderColor: "red",
     borderWidth: moderateScale(4),
-    borderRadius: moderateScale(12),
+    borderRadius: moderateScale(16),
   },
   
   maybeOverlay: {
     borderColor: "blue",
     borderWidth: moderateScale(4),
-    borderRadius: moderateScale(12),
+    borderRadius: moderateScale(16),
   },
 });

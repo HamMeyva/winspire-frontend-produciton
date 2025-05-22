@@ -590,22 +590,42 @@ export default function SwipeableCardsPage({
     return () => clearInterval(intervalId);
   }, []);
 
-  // Function to handle sharing the app or category
+  // Function to handle sharing the app or category with current card content
   const onShareApp = async () => {
     try {
+      // Get the current card content based on page number
+      let currentCardContent = "";
+      if (contentItems.length > 0 && pageNumber > 0 && pageNumber <= contentItems.length) {
+        const currentItem = contentItems[pageNumber - 1];
+        currentCardContent = currentItem.body || currentItem.summary || "";
+        
+        // Limit the length of the content for sharing
+        if (currentCardContent.length > 200) {
+          currentCardContent = currentCardContent.substring(0, 197) + "...";
+        }
+      }
+      
+      const shareMessage = `"${currentCardContent}"
+
+Check out this and more in the Winspire app! Download now from`;
+      
       const result = await Share.share({
-        message: `Check out this category in Windspire: ${categoryTitle || title} | Or download Windspire for daily inspiration! `,
-        // url: 'your_app_store_link_here', // Optional: Add app store link
-        title: 'Share Windspire Content'
+        message: shareMessage,
+        url: 'https://winspire.app',
+        title: 'Share Winspire Content'
       });
+      
       if (result.action === Share.sharedAction) {
         if (result.activityType) {
           // shared with activity type of result.activityType
+          console.log(`Shared content with activity type: ${result.activityType}`);
         } else {
           // shared
+          console.log('Content shared successfully');
         }
       } else if (result.action === Share.dismissedAction) {
         // dismissed
+        console.log('Share was dismissed');
       }
     } catch (error: any) {
       console.error('Error sharing:', error.message);
@@ -672,6 +692,7 @@ export default function SwipeableCardsPage({
           pagingEnabled
           ref={scrollViewRef}
           showsHorizontalScrollIndicator={false}
+          style={styles.cardsScrollView}
           onScroll={async (event) => {
             const currentPage = Math.round(
               event.nativeEvent.contentOffset.x / width
@@ -825,6 +846,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.black,
   },
+  
+  cardsScrollView: {
+    backgroundColor: "#F0EDE5", // Beige/off-white background from the reference image
+  },
 
   headerContainer: {
     width: "100%",
@@ -854,72 +879,83 @@ const styles = StyleSheet.create({
 
   pageNumberContainer: {
     position: "absolute",
-    top: verticalScale(Platform.OS === "android" ? 70 : 110),
-    right: horizontalScale(20),
+    top: verticalScale(Platform.OS === "android" ? 60 : 120),
+    right: horizontalScale(25),
     paddingHorizontal: horizontalScale(10),
-    paddingVertical: verticalScale(5),
-    backgroundColor: Colors.gray,
-    borderRadius: moderateScale(5),
-    zIndex: 1,
+    paddingVertical: verticalScale(10),
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    borderRadius: moderateScale(25),
+    zIndex: 10,
   },
 
   pageNumberText: {
     color: Colors.white,
     fontFamily: "SFProMedium",
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(14),
   },
 
   footerContainer: {
-    paddingBottom: verticalScale(Platform.OS === "android" ? 20 : 30),
+    paddingBottom: verticalScale(Platform.OS === "android" ? 30 : 40),
     paddingHorizontal: horizontalScale(20),
   },
 
   footerDotsContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: horizontalScale(8),
-    marginBottom: verticalScale(20),
+    bottom: verticalScale(180), // Positioned exactly in the middle of the black space
+    zIndex: 100,
   },
 
   footerDot: {
     width: horizontalScale(8),
     height: horizontalScale(8),
     borderRadius: moderateScale(4),
+    backgroundColor: "white", // Ensure dots are white
   },
 
   footerButtonsContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginTop: verticalScale(30),
   },
 
   footerButton: {
     width: "48%",
-    height: verticalScale(50),
+    height: verticalScale(55),
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: moderateScale(25),
+    borderRadius: moderateScale(30),
+    elevation: 2, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   footerButtonPlaceholder: {
     width: "48%",
-    height: verticalScale(50),
+    height: verticalScale(55),
   },
 
   footerButtonText: {
     fontFamily: "SFProBold",
-    fontSize: moderateScale(16),
+    fontSize: moderateScale(18),
   },
 
   backButton: {
-    backgroundColor: Colors.lightGray,
+    backgroundColor: "#BCBCBC", // Light gray color from the reference image
   },
   backButtonText: {
-    color: Colors.black,
+    color: Colors.white,
   },
 
   nextButton: {
-    backgroundColor: Colors.red,
+    backgroundColor: "#FF5A5F", // Coral red color from the reference image
   },
   nextButtonText: {
     color: Colors.white,

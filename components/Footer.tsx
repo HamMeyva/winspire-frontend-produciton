@@ -11,6 +11,7 @@ import { categoriesStore, contentTypeStore } from "@/context/store";
 
 // utils
 import { API } from "@/utils/api";
+import { STORAGE } from "@/utils/storage";
 
 function Footer({
   activeTab,
@@ -31,9 +32,18 @@ function Footer({
         const types = await API.getContentTypes();
         // Filter content types to only include allowed ones, removing 'quote'
         const allowedTypes = types.filter(type => 
-          ['hack', 'tip', 'hack2', 'tip2'].includes(type.toLowerCase())
+          ['hack', 'hack2', 'tip', 'tip2'].includes(type.toLowerCase())
         );
-        contentTypeStore.update(allowedTypes);
+        
+        // Sort content types in the correct order: Hacks, Hacks 2, Tips, Tips 2
+        const sortedTypes = [
+          ...allowedTypes.filter(type => type.toLowerCase() === 'hack'),
+          ...allowedTypes.filter(type => type.toLowerCase() === 'hack2'),
+          ...allowedTypes.filter(type => type.toLowerCase() === 'tip'),
+          ...allowedTypes.filter(type => type.toLowerCase() === 'tip2')
+        ];
+        
+        contentTypeStore.update(sortedTypes);
       } catch (error) {
         console.error("Error fetching content types:", error);
       } finally {
@@ -62,6 +72,12 @@ function Footer({
           if (categoryNames.length > 0) {
             console.log(`DEBUG: Footer - Setting activeTab to first category: ${categoryNames[0]}`);
             setActiveTab(categoryNames[0]);
+            
+            // Store categories for this content type in AsyncStorage for progress tracking
+            await STORAGE.storeCategoriesForContentType(
+              contentTypeStore.activeContentType,
+              categoryNames
+            );
           } else {
             console.log(`DEBUG: Footer - No categories found for content type: ${contentTypeStore.activeContentType}`);
           }
@@ -76,7 +92,7 @@ function Footer({
     }
   }, [contentTypeStore.activeContentType]);
 
-  // Custom display names for content types
+  // Custom display names for content types to match the categories shown in the screenshots
   const getDisplayName = (type: string) => {
     switch (type.toLowerCase()) {
       case 'hack': return 'Hacks';
@@ -139,11 +155,12 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    width: "90%",
+    width: "100%",
     flexDirection: "row",
     height: verticalScale(45),
-    justifyContent: "space-around",
+    justifyContent: "space-evenly",
     backgroundColor: Colors.black,
+    paddingHorizontal: horizontalScale(10),
   },
 
   footerButton: {
@@ -151,6 +168,7 @@ const styles = StyleSheet.create({
     height: "100%",
     alignItems: "center",
     justifyContent: "center",
+    minWidth: horizontalScale(70),
   },
   
   activeFooterButton: {
@@ -160,12 +178,14 @@ const styles = StyleSheet.create({
 
   footerButtonText: {
     color: Colors.white,
-    fontFamily: "SFProMedium",
+    fontFamily: "SFProRegular",
     fontSize: moderateScale(16),
+    textAlign: "center",
   },
   
   activeFooterButtonText: {
     fontFamily: "SFProBold",
+    color: Colors.white,
   },
   
   emptyText: {

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import Feather from "@expo/vector-icons/Feather";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { View, StyleSheet, Image, Platform } from "react-native";
+import { View, StyleSheet, Image, Platform, Text } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 // utils
 import { STORAGE } from "@/utils/storage";
@@ -28,20 +29,39 @@ export default function Header({
     useState<number>(0);
 
   const updateCategoryDone = async () => {
-    const categories = Object.keys(categoriesStore.categories);
-    const promises = [];
-
-    for (let category of categories) {
-      for (let i = 0; i < 5; i++) {
-        promises.push(STORAGE.getCategoryDone(category, i));
+    // Track completion across all content types (hack, hack2, tip, tip2)
+    const contentTypes = ['hack', 'hack2', 'tip', 'tip2'];
+    let totalCompleted = 0;
+    let totalCategories = 0;
+    
+    // Get all category completion statuses from storage
+    for (const contentType of contentTypes) {
+      try {
+        // Get categories for this content type from storage
+        const categoriesForType = await STORAGE.getAllCategoriesForContentType(contentType);
+        if (!categoriesForType || !Array.isArray(categoriesForType)) continue;
+        
+        // Count total categories for accurate percentage calculation
+        totalCategories += categoriesForType.length;
+        
+        // Check completion status for each category
+        for (const category of categoriesForType) {
+          // Each category counts as 1 subcategory (5% of progress)
+          const isDone = await STORAGE.getCategoryDone(category, 0);
+          if (isDone === "true") {
+            totalCompleted++;
+            console.log(`DEBUG: Category ${category} in ${contentType} is completed`);
+          }
+        }
+      } catch (error) {
+        console.error(`Error checking completion for ${contentType}:`, error);
       }
     }
 
-    const results = await Promise.all(promises);
-    const doneCount = results.filter((val) => val === "true").length;
-
-    const totalItems = categories.length * 5;
-    const percentage = (doneCount / totalItems) * 100;
+    // Calculate percentage based on actual number of categories
+    // Each category should contribute 5% to the total progress (assuming 20 total categories)
+    const percentage = totalCategories > 0 ? (totalCompleted / totalCategories) * 100 : 0;
+    console.log(`DEBUG: Progress - ${totalCompleted} completed out of ${totalCategories} total categories (${percentage.toFixed(2)}%)`);
 
     setCategoryDonePercentage(percentage);
   };
@@ -62,27 +82,23 @@ export default function Header({
     <View style={styles.container}>
       <View style={styles.headerContainer}>
         <SafeAreaView style={styles.logoContainer}>
-          {categoryDonePercentage < 100 ? (
+          <View style={styles.logoWrapper}>
+            {/* White logo as background */}
             <Image
               resizeMode="contain"
               source={require("@/assets/images/logo.png")}
-              style={[styles.logo, {tintColor: Colors.green}]}
+              style={[styles.logo, {tintColor: '#333333'}]}
             />
-          ) : (
-            <View style={styles.completedLogoContainer}>
+            
+            {/* Green logo with clipping based on progress */}
+            <View style={[styles.progressLogoContainer, {width: `${categoryDonePercentage}%`}]}>
               <Image
                 resizeMode="contain"
                 source={require("@/assets/images/logo.png")}
                 style={[styles.logo, {tintColor: Colors.green}]}
               />
-
-              <Image
-                resizeMode="contain"
-                source={require("@/assets/images/medal.png")}
-                style={styles.medal}
-              />
             </View>
-          )}
+          </View>
         </SafeAreaView>
 
         <SafeAreaView style={styles.settingsContainer}>
@@ -90,8 +106,8 @@ export default function Header({
             <Feather
               onPress={onPressInfo}
               name="info"
-              size={moderateScale(22)}
-              color={Colors.white}
+              size={moderateScale(20)}
+              color={Colors.black}
             />
           </View>
 
@@ -99,13 +115,14 @@ export default function Header({
             <Feather
               onPress={onPressSettings}
               name="settings"
-              size={moderateScale(22)}
-              color={Colors.white}
+              size={moderateScale(20)}
+              color={Colors.black}
             />
           </View>
         </SafeAreaView>
       </View>
 
+      {/* Single progress bar with proper styling */}
       <View style={styles.progressBarContainer}>
         <View
           style={[
@@ -113,9 +130,9 @@ export default function Header({
             {
               width: `${categoryDonePercentage}%`,
               borderTopRightRadius:
-                categoryDonePercentage === 100 ? moderateScale(12) : 0,
+                categoryDonePercentage === 100 ? moderateScale(2.5) : 0,
               borderBottomRightRadius:
-                categoryDonePercentage === 100 ? moderateScale(12) : 0,
+                categoryDonePercentage === 100 ? moderateScale(2.5) : 0,
             },
           ]}
         />
@@ -148,11 +165,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: Platform.OS === "ios" ? verticalScale(28) : 0,
   },
+  
+  logoWrapper: {
+    position: "relative",
+    width: horizontalScale(150),
+    height: verticalScale(40),
+    justifyContent: "center",
+  },
 
   logo: {
     width: horizontalScale(150),
+    height: verticalScale(40),
   },
-
+  
+  progressLogoContainer: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    height: "100%",
+    overflow: "hidden",
+  },
+  
   completedLogoContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -172,28 +205,31 @@ const styles = StyleSheet.create({
   },
   
   iconCircle: {
-    width: horizontalScale(36),
-    height: horizontalScale(36),
-    borderRadius: horizontalScale(18),
-    borderWidth: 1,
-    borderColor: "#333333",
+    width: horizontalScale(32),
+    height: horizontalScale(32),
+    borderRadius: horizontalScale(16),
+    backgroundColor: Colors.white,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
 
   progressBarContainer: {
     width: "88%",
     alignSelf: "center",
-    height: verticalScale(16),
-    backgroundColor: Colors.white,
-    borderRadius: moderateScale(12),
-    opacity: 0.5,
+    height: verticalScale(5),
+    backgroundColor: "#333333",
+    borderRadius: moderateScale(2.5),
   },
 
   progressBar: {
     height: "100%",
     backgroundColor: Colors.green,
-    borderTopLeftRadius: moderateScale(12),
-    borderBottomLeftRadius: moderateScale(12),
+    borderTopLeftRadius: moderateScale(2.5),
+    borderBottomLeftRadius: moderateScale(2.5),
   },
 });

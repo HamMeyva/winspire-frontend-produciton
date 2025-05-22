@@ -35,12 +35,11 @@ function LoginScreen() {
           style={styles.logo}
           resizeMode="contain"
         />
-        <Text style={styles.appName}>Windspire</Text>
       </View>
       
       <View style={styles.contentContainer}>
-        <Text style={styles.welcomeText}>Yaşamınızı Değiştirecek</Text>
-        <Text style={styles.subtitleText}>Hayat Taktikleri</Text>
+        <Text style={styles.welcomeText}>Life-Changing</Text>
+        <Text style={styles.subtitleText}>Genius Hacks</Text>
         
         <View style={styles.loginButtonsContainer}>
           {isLoading ? (
@@ -56,7 +55,7 @@ function LoginScreen() {
                 <View style={styles.googleIcon}>
                   <Ionicons name="logo-google" size={20} color="#4285F4" />
                 </View>
-                <Text style={styles.googleButtonText}>Google ile devam et</Text>
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
               </TouchableOpacity>
               
               {/* Test Giriş Butonu */}
@@ -68,7 +67,7 @@ function LoginScreen() {
                 <View style={styles.googleIcon}>
                   <Ionicons name="person" size={20} color="#FFFFFF" />
                 </View>
-                <Text style={styles.googleButtonText}>Test Hesabı ile Giriş</Text>
+                <Text style={styles.googleButtonText}>Login with Test Account</Text>
               </TouchableOpacity>
             </>
           )}
@@ -76,7 +75,7 @@ function LoginScreen() {
       </View>
       
       <Text style={styles.termsText}>
-        Giriş yaparak, Gizlilik Politikası ve Hizmet Şartlarını kabul etmiş olursunuz.
+        By logging in, you agree to our Privacy Policy and Terms of Service.
       </Text>
     </View>
   );

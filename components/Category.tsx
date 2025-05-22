@@ -19,7 +19,7 @@ import {
 import { Colors } from "@/constants/Colors";
 
 // context
-import { categoriesStore } from "@/context/store";
+import { categoriesStore, contentTypeStore } from "@/context/store";
 import { observer } from "mobx-react-lite";
 
 // utils
@@ -41,20 +41,55 @@ function Category({
   index: number;
 }) {
   const formatTitle = (title: string) => {
-    if (title.length <= 18) return title;
-
-    // For longer titles, use newlines to break into two lines
-    const words = title.split(" ");
+    // Get the active content type
+    const activeContentType = contentTypeStore.activeContentType;
     
-    // If there are only 2 or fewer words, just return the title
-    if (words.length <= 2) return title;
+    // Only modify titles for tips and tips2 content types
+    if (activeContentType === 'tip' || activeContentType === 'tip2') {
+      // Format titles for tips categories based on the API response
+      if (title.includes('Dating')) {
+        return 'Dating & Relationships';
+      } else if (title.includes('Finance') || title.includes('Wealth')) {
+        return 'Finance & Wealth Building';
+      } else if (title.includes('Fitness')) {
+        return 'Fitness & Nutrition';
+      } else if (title.includes('Mindset') || title.includes('Motivation')) {
+        return 'Mindset & Motivation';
+      } else if (title.includes('Social')) {
+        return 'Social Skills';
+      }
+      
+      // Format titles for tips2 categories based on the terminal logs
+      else if (title.includes('Career') || title.includes('Leadership')) {
+        return 'Career & Leadership';
+      } else if (title.includes('Creative') || title.includes('Problem')) {
+        return 'Creative Thinking & Problem-Solving';
+      } else if (title.includes('Productivity') || title.includes('Time')) {
+        return 'Productivity & Time Management';
+      } else if (title.includes('Psychology') || title.includes('Influence')) {
+        return 'Psychology & Influence';
+      } else if (title.includes('Wisdom') || title.includes('Learning')) {
+        return 'Wisdom & Learning';
+      }
+    }
     
-    // Find a good breakpoint to split the title into two lines
-    const midPoint = Math.floor(words.length / 2);
+    // For other content types (hack, hack2), keep the original title
+    // If title is too long, handle line breaks
+    if (title.length > 18) {
+      const words = title.split(" ");
+      
+      // If there are only 2 or fewer words, just return the title
+      if (words.length <= 2) return title;
+      
+      // Find a good breakpoint to split the title into two lines
+      const midPoint = Math.floor(words.length / 2);
+      
+      // Insert a newline after a good break point
+      words.splice(midPoint, 0, "\n");
+      return words.join(" ");
+    }
     
-    // Insert a newline after a good break point
-    words.splice(midPoint, 0, "\n");
-    return words.join(" ");
+    return title;
   };
 
   const categoryData =
@@ -136,85 +171,143 @@ function Category({
     // regardless of completed status
     // Otherwise, use completed icon (green) if all content is viewed
     // When new published content arrives, icon resets to white (hasNewContent becomes true)
-    
-    // Critical change: For categories with new content (hasNewContent=true),
-    // icon should be WHITE (default) regardless of completed status.
-    // Only use the green (completed) icon when all content has been viewed (completed="true")
-    // AND there's no new content (hasNewContent=false).
     const isCompleted = completed === "true" && !hasNewContent;
     
     // Debug log for icon state
     console.log(`Category ${title}: completed=${completed}, hasNewContent=${hasNewContent}, using isCompleted=${isCompleted}`);
     
-    // Define icon map - these must be static require statements
+    // Get the active content type
+    const activeContentType = contentTypeStore.activeContentType;
+    
+    // Define all icons for different content types
     const icons: { [key: string]: any } = {
-      // Default icons (white)
-      "tinder_default": require("@/assets/images/icons/Tinder Hacks Default.png"),
-      "travel_default": require("@/assets/images/icons/Travel Hacks Default.png"),
-      "mind_default": require("@/assets/images/icons/Mind Hacks Default.png"),
-      "loophole_default": require("@/assets/images/icons/Loophole Hacks Default.png"),
+      // Hack content type icons
+      "dating_default": require("@/assets/images/icons/Dating Hacks Default.png"),
+      "dating_completed": require("@/assets/images/icons/Dating Hacks Completed.png"),
       "money_default": require("@/assets/images/icons/Money Hacks Default.png"),
-      "power_default": require("@/assets/images/icons/Power Hacks Default.png"),
-      "survival_default": require("@/assets/images/icons/Survival Hacks Default.png"),
-      "dating_hacks_default": require("@/assets/images/icons/Dating Hacks Default.png"),
-      "dating_tips_default": require("@/assets/images/icons/Dating Tips Default.png"),
-      "finance_default": require("@/assets/images/icons/Finance Tips Default.png"),
-      "fitness_default": require("@/assets/images/icons/Fitness Tips Default.png"),
-      "mindset_default": require("@/assets/images/icons/Mindset Tips Default.png"),
-      "social_default": require("@/assets/images/icons/Social Tips Default.png"),
-      
-      // Completed icons (green)
-      "tinder_completed": require("@/assets/images/icons/Tinder Hacks Completed.png"),
-      "travel_completed": require("@/assets/images/icons/Travel Hacks Completed.png"),
-      "mind_completed": require("@/assets/images/icons/Mind Hacks Completed.png"),
-      "loophole_completed": require("@/assets/images/icons/Loophole Hacks Green.png"),
       "money_completed": require("@/assets/images/icons/Money Hacks Completed.png"),
+      "power_default": require("@/assets/images/icons/Power Hacks Default.png"),
       "power_completed": require("@/assets/images/icons/Power Hacks Completed.png"),
+      "survival_default": require("@/assets/images/icons/Survival Hacks Default.png"),
       "survival_completed": require("@/assets/images/icons/Survival Hacks Completed.png"),
-      "dating_hacks_completed": require("@/assets/images/icons/Dating Hacks Completed.png"),
+      // Using Mind Hacks images as fallbacks for Trend Hacks
+      "trend_default": require("@/assets/images/icons/Mind Hacks Default.png"),
+      "trend_completed": require("@/assets/images/icons/Mind Hacks Completed.png"),
+      
+      // Hack2 content type icons
+      "tinder_default": require("@/assets/images/icons/Tinder Hacks Default.png"),
+      "tinder_completed": require("@/assets/images/icons/Tinder Hacks Completed.png"),
+      "travel_default": require("@/assets/images/icons/Travel Hacks Default.png"),
+      "travel_completed": require("@/assets/images/icons/Travel Hacks Completed.png"),
+      "mind_default": require("@/assets/images/icons/Mind Hacks Default.png"),
+      "mind_completed": require("@/assets/images/icons/Mind Hacks Completed.png"),
+      "loophole_default": require("@/assets/images/icons/Loophole Hacks Default.png"),
+      "loophole_completed": require("@/assets/images/icons/Loophole Hacks Green.png"),
+      "business_default": require("@/assets/images/icons/Money Hacks Default.png"),
+      "business_completed": require("@/assets/images/icons/Money Hacks Completed.png"),
+      
+      // Tips content type icons
+      "dating_tips_default": require("@/assets/images/icons/Dating Tips Default.png"),
       "dating_tips_completed": require("@/assets/images/icons/Dating Tips Completed.png"),
+      "finance_default": require("@/assets/images/icons/Finance Tips Default.png"),
       "finance_completed": require("@/assets/images/icons/Finance Tips Completed.png"),
+      "fitness_default": require("@/assets/images/icons/Fitness Tips Default.png"),
       "fitness_completed": require("@/assets/images/icons/Fitness Tips Completed.png"),
+      "mindset_default": require("@/assets/images/icons/Mindset Tips Default.png"),
       "mindset_completed": require("@/assets/images/icons/Mindset Tips Completed.png"),
+      "social_default": require("@/assets/images/icons/Social Tips Default.png"),
       "social_completed": require("@/assets/images/icons/Social Tips Completed.png"),
+      
+      // Tips2 content type icons - using existing icons as fallbacks
+      // Career & Leadership -> using Mindset Tips icons
+      "career_leadership_default": require("@/assets/images/icons/Mindset Tips Default.png"),
+      "career_leadership_completed": require("@/assets/images/icons/Mindset Tips Completed.png"),
+      // Productivity & Time Management -> using Finance Tips icons
+      "productivity_time_default": require("@/assets/images/icons/Finance Tips Default.png"),
+      "productivity_time_completed": require("@/assets/images/icons/Finance Tips Completed.png"),
+      // Creative Thinking & Problem-Solving -> using Mind Hacks icons
+      "creative_thinking_default": require("@/assets/images/icons/Mind Hacks Default.png"),
+      "creative_thinking_completed": require("@/assets/images/icons/Mind Hacks Completed.png"),
+      // Psychology & Influence -> using Social Tips icons
+      "psychology_influence_default": require("@/assets/images/icons/Social Tips Default.png"),
+      "psychology_influence_completed": require("@/assets/images/icons/Social Tips Completed.png"),
+      // Wisdom & Learning -> using Fitness Tips icons
+      "wisdom_learning_default": require("@/assets/images/icons/Fitness Tips Default.png"),
+      "wisdom_learning_completed": require("@/assets/images/icons/Fitness Tips Completed.png")
     };
     
-    // Determine which category this is
+    // Determine which category this is based on title and content type
     let categoryKey = "";
     const titleLower = title.toLowerCase();
     
-    if (titleLower.includes("tinder")) {
-      categoryKey = "tinder";
-    } else if (titleLower.includes("travel")) {
-      categoryKey = "travel";
-    } else if (titleLower.includes("mind hack")) {
-      categoryKey = "mind";
-    } else if (titleLower.includes("loophole")) {
-      categoryKey = "loophole";
-    } else if (titleLower.includes("money")) {
-      categoryKey = "money";
-    } else if (titleLower.includes("power")) {
-      categoryKey = "power";
-    } else if (titleLower.includes("survival")) {
-      categoryKey = "survival";
-    } else if (titleLower.includes("business")) {
-      // For business category, use money hacks icon as fallback
-      categoryKey = "money";
-    } else if (titleLower.includes("dating hack")) {
-      categoryKey = "dating_hacks";
-    } else if (titleLower.includes("dating tip")) {
-      categoryKey = "dating_tips";
-    } else if (titleLower.includes("finance") || titleLower.includes("wealth")) {
-      categoryKey = "finance";
-    } else if (titleLower.includes("fitness") || titleLower.includes("nutrition")) {
-      categoryKey = "fitness";
-    } else if (titleLower.includes("mindset") || titleLower.includes("motivation")) {
-      categoryKey = "mindset";
-    } else if (titleLower.includes("social")) {
-      categoryKey = "social";
-    } else {
-      // Default if no match is found
-      categoryKey = "mind";
+    // Handle Tips2 content type categories (Career & Leadership, etc.)
+    if (activeContentType === 'tip2') {
+      if (titleLower.includes("career") || titleLower.includes("leadership")) {
+        categoryKey = "career_leadership";
+      } else if (titleLower.includes("productivity") || titleLower.includes("time management")) {
+        categoryKey = "productivity_time";
+      } else if (titleLower.includes("creative") || titleLower.includes("problem-solving")) {
+        categoryKey = "creative_thinking";
+      } else if (titleLower.includes("psychology") || titleLower.includes("influence")) {
+        categoryKey = "psychology_influence";
+      } else if (titleLower.includes("wisdom") || titleLower.includes("learning")) {
+        categoryKey = "wisdom_learning";
+      }
+    }
+    // Handle Hack content type categories
+    else if (activeContentType === 'hack') {
+      if (titleLower.includes("dating")) {
+        categoryKey = "dating";
+      } else if (titleLower.includes("money")) {
+        categoryKey = "money";
+      } else if (titleLower.includes("power")) {
+        categoryKey = "power";
+      } else if (titleLower.includes("survival")) {
+        categoryKey = "survival";
+      } else if (titleLower.includes("trend")) {
+        categoryKey = "trend";
+      }
+    }
+    // Handle Hack2 content type categories
+    else if (activeContentType === 'hack2') {
+      if (titleLower.includes("tinder")) {
+        categoryKey = "tinder";
+      } else if (titleLower.includes("travel")) {
+        categoryKey = "travel";
+      } else if (titleLower.includes("mind")) {
+        categoryKey = "mind";
+      } else if (titleLower.includes("loophole")) {
+        categoryKey = "loophole";
+      } else if (titleLower.includes("business")) {
+        categoryKey = "business";
+      }
+    }
+    // Handle Tips content type categories
+    else if (activeContentType === 'tip') {
+      if (titleLower.includes("dating")) {
+        categoryKey = "dating_tips";
+      } else if (titleLower.includes("finance") || titleLower.includes("wealth")) {
+        categoryKey = "finance";
+      } else if (titleLower.includes("fitness") || titleLower.includes("nutrition")) {
+        categoryKey = "fitness";
+      } else if (titleLower.includes("mindset") || titleLower.includes("motivation")) {
+        categoryKey = "mindset";
+      } else if (titleLower.includes("social")) {
+        categoryKey = "social";
+      }
+    }
+    
+    // Default fallback if no match is found
+    if (!categoryKey) {
+      if (activeContentType === 'tip2') {
+        categoryKey = "wisdom_learning"; // Default for tip2
+      } else if (activeContentType === 'hack2') {
+        categoryKey = "mind"; // Default for hack2
+      } else if (activeContentType === 'tip') {
+        categoryKey = "mindset"; // Default for tip
+      } else {
+        categoryKey = "power"; // Default for hack
+      }
     }
     
     // Create the full key by combining category with completion status
@@ -274,8 +367,8 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: Colors.white,
     fontFamily: "SFProBold",
-    fontSize: moderateScale(22),
-    lineHeight: moderateScale(28),
+    fontSize: moderateScale(24),
+    lineHeight: moderateScale(30),
   },
 
   iconWrapper: {
@@ -309,7 +402,7 @@ const styles = StyleSheet.create({
     left: horizontalScale(16),
     height: verticalScale(22),
     bottom: verticalScale(-11),
-    width: horizontalScale(140),
+    width: horizontalScale(180),
     backgroundColor: "#4f9ef4",
     borderRadius: moderateScale(6),
   },
