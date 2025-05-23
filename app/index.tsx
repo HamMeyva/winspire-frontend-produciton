@@ -25,9 +25,8 @@ import { Alert, AppState } from 'react-native';
 
 // components
 import Header from "@/components/Header";
-import ProgressBar from "@/components/ProgressBar";
-import Footer from "@/components/Footer";
 import Category from "@/components/Category";
+import SwipeableFooter from "@/components/SwipeableFooter";
 import InfoPage from "@/components/InfoPage";
 import SwipeableCardsPage from "@/components/SwipeableCardsPage";
 import SettingsPage from "@/components/SettingsPage";
@@ -54,8 +53,8 @@ import { STORAGE } from "@/utils/storage";
 import { API } from "@/utils/api";
 
 // Constants
-const REVENUECAT_API_KEY = 'appl_TaLTvwpygoiZhOCYceJEewBuouG';
-const PREMIUM_ENTITLEMENT_ID = 'Pro';
+const REVENUECAT_API_KEY = 'appl_bppzyuedUPPlOMcnNVnaqDLFLGu';
+const PREMIUM_ENTITLEMENT_ID = 'premium';
 
 const { width } = Dimensions.get("screen");
 
@@ -297,8 +296,17 @@ function Main() {
     }
   }, [isRevenueCatConfigured]);
 
-  const showLimitedTimeOffer = () => {
-    setLimitedTimeOfferModalVisible(true);
+  const showLimitedTimeOffer = async () => {
+    // Check if the limited time offer can be shown based on frequency limits
+    const canShow = await STORAGE.canShowLimitedTimeOffer();
+    
+    if (canShow) {
+      // Mark that the offer is being shown now
+      await STORAGE.setLimitedTimeOfferLastShown();
+      setLimitedTimeOfferModalVisible(true);
+    } else {
+      console.log('Limited time offer cannot be shown yet due to frequency limits');
+    }
   };
 
   useEffect(() => {
@@ -358,7 +366,17 @@ function Main() {
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
       console.log("DEBUG: Purchase successful for package:", packageToPurchase.identifier, "CustomerInfo:", customerInfo.entitlements.active);
       updateSubscriptionStatus(customerInfo); // Update UI immediately
-      Alert.alert("Success", "Your subscription is now active!");
+      
+      // Show success alert and then navigate to login screen
+      Alert.alert("Success", "Your subscription is now active!", [
+        {
+          text: "Continue",
+          onPress: () => {
+            setPaywallDismissedInitially(true);
+            router.replace('/login');
+          }
+        }
+      ]);
     } catch (e: any) {
       if (!e.userCancelled) {
         console.error(`ERROR: Purchase failed for package ${packageToPurchase.identifier}:`, e);
@@ -427,6 +445,21 @@ function Main() {
     const annualPackage = offeringsStore.offerings?.current?.annual || 
                           offeringsStore.offerings?.current?.availablePackages.find((p: PurchasesPackage) => p.packageType === Purchases.PACKAGE_TYPE.ANNUAL);
     await makePurchase(annualPackage);
+  };
+
+  const purchaseSaleAnnual = async () => {
+    // Use the "sale" offering for the limited time offer
+    const saleAnnualPackage = offeringsStore.offerings?.all?.sale?.annual ||
+                              offeringsStore.offerings?.all?.sale?.availablePackages?.find((p: PurchasesPackage) => p.packageType === Purchases.PACKAGE_TYPE.ANNUAL);
+    
+    if (!saleAnnualPackage) {
+      console.error('Sale annual package not found, falling back to regular annual package');
+      await purchaseAnnual();
+      return;
+    }
+    
+    console.log('DEBUG: Purchasing sale annual package:', saleAnnualPackage.identifier);
+    await makePurchase(saleAnnualPackage);
   };
 
   const restorePurchases = async () => {
@@ -559,16 +592,55 @@ function Main() {
       // Step 1: Free trial screen
       return (
         <GestureHandlerRootView>
-          <SubscriptionPageWithFreeTrial
-            purchase={() => {
-              // After free trial screen, show purchase screen
-              setCurrentScreen('purchase');
-            }}
-            pricePerWeek={
-              offeringsStore.offerings?.current?.weekly?.product.priceString || "$6.99"
-            }
-            restorePurchases={restorePurchases}
-          />
+          <View style={{flex: 1}}>
+            {/* Development Skip Buttons */}
+            <View style={{
+              position: 'absolute', 
+              top: 50, 
+              right: 20, 
+              zIndex: 999,
+              flexDirection: 'row',
+              gap: 10
+            }}>
+              {/* X button to skip to login (dev feature) */}
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }} 
+                onPress={skipToLogin}
+              >
+                <Text style={{color: 'white', fontSize: 20, fontWeight: 'bold'}}>X</Text>
+              </TouchableOpacity>
+              
+              {/* Skip button with text */}
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  paddingHorizontal: 15,
+                  height: 40,
+                  borderRadius: 20,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }} 
+                onPress={skipToLogin}
+              >
+                <Text style={{color: 'white', fontSize: 12, fontWeight: 'bold'}}>SKIP</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <SubscriptionPageWithFreeTrial
+              purchase={purchaseFreeTrial}
+              pricePerWeek={
+                offeringsStore.offerings?.current?.weekly?.product.priceString || "$6.99"
+              }
+              restorePurchases={restorePurchases}
+            />
+          </View>
         </GestureHandlerRootView>
       );
     } else if (currentScreen === 'purchase') {
@@ -576,24 +648,45 @@ function Main() {
       return (
         <GestureHandlerRootView>
           <View style={{flex: 1}}>
-            {/* X button to skip to login (dev feature) */}
-            <TouchableOpacity 
-              style={{
-                position: 'absolute', 
-                top: 50, 
-                right: 20, 
-                zIndex: 999,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                justifyContent: 'center',
-                alignItems: 'center'
-              }} 
-              onPress={skipToLogin}
-            >
-              <Text style={{color: 'white', fontSize: 20, fontWeight: 'bold'}}>X</Text>
-            </TouchableOpacity>
+            {/* Development Skip Buttons */}
+            <View style={{
+              position: 'absolute', 
+              top: 50, 
+              right: 20, 
+              zIndex: 999,
+              flexDirection: 'row',
+              gap: 10
+            }}>
+              {/* X button to skip to login (dev feature) */}
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }} 
+                onPress={skipToLogin}
+              >
+                <Text style={{color: 'white', fontSize: 20, fontWeight: 'bold'}}>X</Text>
+              </TouchableOpacity>
+              
+              {/* Skip button with text */}
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  paddingHorizontal: 15,
+                  height: 40,
+                  borderRadius: 20,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }} 
+                onPress={skipToLogin}
+              >
+                <Text style={{color: 'white', fontSize: 12, fontWeight: 'bold'}}>SKIP</Text>
+              </TouchableOpacity>
+            </View>
             
             <SubscriptionPageWithoutFreeTrial
               weeklyPricePerWeek={
@@ -622,8 +715,6 @@ function Main() {
   const showMainContent = subscribed;
 
   if (showMainContent) {
-    const categories = Object.keys(categoriesStore.categories);
-    
     if (cardsPageVisible && selectedCategoryData) {
       return (
         <GestureHandlerRootView style={{flex:1}}> 
@@ -643,12 +734,8 @@ function Main() {
       );
     }
 
-    console.log(`DEBUG: Main - Current categories: ${categories.join(', ')}`);
 
-    const setActiveTabFooter = (value: string) => {
-      console.log(`DEBUG: Main - Setting active tab to: ${value}`);
-      setActiveTab(value);
-    };
+
 
     return (
       <GestureHandlerRootView style={styles.container}>
@@ -665,114 +752,43 @@ function Main() {
           }}
         />
         
-        {/* Progress Bar */}
-        <ProgressBar 
-          completedCount={getTotalCompletion().completedCount}
-          totalCount={getTotalCompletion().totalCount}
-        />
+
         
 
 
-        {/* Vertical ScrollView to show all categories for the selected content type */}
-        <ScrollView
-          style={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={Colors.white}
-              colors={[Colors.white]}
-              progressBackgroundColor={Colors.black}
-            />
-          }
-        >
-          {categories && categories.length > 0 ? (
-            <View style={styles.allCategoriesContainer}>
-              {/* Display all categories as a flat list */}
-              {(() => {
-                let allCategoryItems: JSX.Element[] = [];
-                let itemIndex = 0;
-                
-                // Flatten the categories into a single list
-                categories.forEach((category, categoryIndex) => {
-                  if (!categoriesStore.categories[category]) {
-                    return;
-                  }
-                  
-                  const categoryKeys = Object.keys(categoriesStore.categories[category] || {});
-                  
-                  // Display up to 5 items (or fewer if there aren't that many)
-                  categoryKeys.slice(0, 5).forEach((key, i) => {
-                    const categoryItem = categoriesStore.categories[category][key];
-                    
-                    if (!categoryItem || !categoryItem.name) {
-                      return;
-                    }
-                    
-                    allCategoryItems.push(
-                      <Category
-                        key={`item-${itemIndex}`}
-                        index={i}
-                        categoryName={category}
-                        completed={categoryDone[categoryIndex * 5 + i] || "false"}
-                        title={categoryItem.name}
-                        onPressCategory={() => {
-                          setInfoBottomSheetVisible(false);
-                          setSettingsBottomSheetVisible(false);
-                          setCardsPageVisible(true);
-                          console.log(`DEBUG: Selected category: ${category}, item: ${key}, name: ${categoryItem.name}`);
-                          
-                          // Log detailed information to help debug
-                          console.log(`DEBUG: Category details - MongoDB ID: ${key}`);
-                          console.log(`DEBUG: Content type: ${contentTypeStore.activeContentType}`);
-                          console.log(`DEBUG: Full category data:`, categoryItem);
-                          
-                          // Make sure we're passing the MongoDB ObjectId as the key instead of the index
-                          setCardsPageTitle(key);
-                          setSelectedCategoryData({
-                            ...categoryItem,
-                            id: key, 
-                            categoryName: category
-                          });
-                        }}
-                      />
-                    );
-                    itemIndex++;
-                  });
-                });
-                
-                return allCategoryItems;
-              })()}
-            </View>
-          ) : (
-            <View style={styles.pageContainer}>
-              <Text style={{ 
-                color: Colors.white, 
-                textAlign: 'center',
-                fontFamily: "SFProMedium",
-                fontSize: moderateScale(16),
-                padding: horizontalScale(20)
-              }}>
-                Please select a content type or wait for categories to load
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-
-        <Footer activeTab={activeTab} setActiveTab={setActiveTabFooter} />
+        {/* Main content with swipeable footer */}
+        <SwipeableFooter
+          categoryDone={categoryDone}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          setCardsPageVisible={setCardsPageVisible}
+          setCardsPageTitle={setCardsPageTitle}
+          setSelectedCategoryData={setSelectedCategoryData}
+          setInfoBottomSheetVisible={setInfoBottomSheetVisible}
+          setSettingsBottomSheetVisible={setSettingsBottomSheetVisible}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
 
         {infoBottomSheetVisible && (
           <InfoPage
             closeBottomSheet={() => setInfoBottomSheetVisible(false)}
-            triggerLimitedTimeOffer={showLimitedTimeOffer} 
+            triggerLimitedTimeOffer={showLimitedTimeOffer}
+            purchaseRegularAnnual={purchaseAnnual}
+            purchaseWeekly={purchaseWeekly}
+            regularAnnualPrice={offeringsStore.offerings?.current?.annual?.product?.priceString || ""}
+            weeklyPrice={offeringsStore.offerings?.current?.weekly?.product?.priceString || ""}
           />
         )}
 
         {settingsBottomSheetVisible && (
           <SettingsPage
             closeBottomSheet={() => setSettingsBottomSheetVisible(false)}
-            triggerLimitedTimeOffer={showLimitedTimeOffer} 
+            triggerLimitedTimeOffer={showLimitedTimeOffer}
+            purchaseRegularAnnual={purchaseAnnual}
+            purchaseWeekly={purchaseWeekly}
+            regularAnnualPrice={offeringsStore.offerings?.current?.annual?.product?.priceString || ""}
+            weeklyPrice={offeringsStore.offerings?.current?.weekly?.product?.priceString || ""}
           />
         )}
 
@@ -796,8 +812,8 @@ function Main() {
             }
             limitedTimeOfferModalVisible={limitedTimeOfferModalVisible}
             close={async () => setLimitedTimeOfferModalVisible(false)}
-            purchaseAnnual={purchaseAnnual} // Pass existing purchaseAnnual function
-            purchaseWeekly={purchaseWeekly} // Pass existing purchaseWeekly function
+            purchaseAnnual={purchaseSaleAnnual}
+            purchaseWeekly={purchaseWeekly}
           />
         )}
       </GestureHandlerRootView>

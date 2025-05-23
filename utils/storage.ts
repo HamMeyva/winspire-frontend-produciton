@@ -422,4 +422,46 @@ export const STORAGE = {
       return [];
     }
   },
+
+  // Limited time offer frequency tracking
+  setLimitedTimeOfferLastShown: async () => {
+    const timestamp = Date.now().toString();
+    const key = getUserSpecificKey('limited_time_offer_last_shown');
+    await AsyncStorage.setItem(key, timestamp);
+  },
+
+  getLimitedTimeOfferLastShown: async () => {
+    const key = getUserSpecificKey('limited_time_offer_last_shown');
+    const value = await AsyncStorage.getItem(key);
+    return value ? parseInt(value) : null;
+  },
+
+  // Check if limited time offer can be shown based on subscription status
+  canShowLimitedTimeOffer: async () => {
+    const lastShownTimestamp = await STORAGE.getLimitedTimeOfferLastShown();
+    
+    if (!lastShownTimestamp) {
+      // Never shown before, so it can be shown
+      return true;
+    }
+
+    const now = Date.now();
+    const timeSinceLastShown = now - lastShownTimestamp;
+    
+    // Get subscription type
+    const subscriptionType = await STORAGE.getSubscriptionType();
+    
+    if (!subscriptionType || subscriptionType === 'trial' || subscriptionType === 'free') {
+      // Free trial users: Once per day (24 hours)
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      return timeSinceLastShown >= oneDayMs;
+    } else if (subscriptionType === 'weekly') {
+      // Weekly subscribers: Once per week (7 days)
+      const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+      return timeSinceLastShown >= oneWeekMs;
+    } else {
+      // Annual subscribers: Don't show limited time offer
+      return false;
+    }
+  },
 };

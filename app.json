@@ -20,14 +20,14 @@
           "backgroundColor": "#000000"
         }
       },
-      "bundleIdentifier": "com.soundayou.winspire",
+      "bundleIdentifier": "com.soundayou.windspire",
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "com.soundayou.winspire",
+              "com.soundayou.windspire",
               "exp"
             ]
           }

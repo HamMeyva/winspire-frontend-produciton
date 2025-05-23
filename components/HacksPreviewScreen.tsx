@@ -23,40 +23,19 @@ const headerData = [
     id: '1',
     title: 'GENIUS LIFE HACKS',
     subtitle: 'refreshed every 24 hours',
+    image: require('@/assets/images/pages/page-1.png'),
   },
   {
     id: '2',
-    title: 'TOP MONEY HACKS',
-    subtitle: 'designed to make you rich',
+    title: 'PRO DATING HACKS',
+    subtitle: 'proven to get more girls',
+    image: require('@/assets/images/pages/page-2.png'),
   },
   {
     id: '3',
-    title: 'PRO DATING HACKS',
-    subtitle: 'proven to get more girls',
-  }
-];
-
-// Sample data for categories card
-const categoriesData = [
-  { id: '1-1', title: 'Dating Hacks', icon: '👼' },
-  { id: '1-2', title: 'Money Hacks', icon: '💰' },
-  { id: '1-3', title: 'Power Hacks', icon: '♟️' },
-  { id: '1-4', title: 'Survival Hacks', icon: '☠️' },
-];
-
-// Sample data for content cards
-const contentCards = [
-  {
-    id: '1',
-    content: `Want to impress people in an important meeting?
-
-Set your phone to make a sound as if you're receiving a call by pressing the side button. Then, pick up the phone and say, 'Hello Mr. X, yes, 7 million dollars works for us. I'm in a meeting right now, I'll call you back once I'm out.' The people in the meeting will think you're dealing with millions of dollars, and they'll be more inclined to make a deal with you.`
-  },
-  {
-    id: '2',
-    content: `You like a girl in a café, but she's with her 2 friends. Do this:
-
-Go to their table with 4 drinks and a tray, acting like a waiter. Say, "The owner of the place sent these drinks as a treat for you." The girls will be surprised. Then, leave 3 drinks in front of them and place the fourth one on the table for yourself, sitting down in the fourth chair. Apologize and say, "I forgot to mention, I'm actually the owner of this place." They'll start laughing. Then you can introduce yourself and join the conversation`
+    title: 'TOP MONEY HACKS',
+    subtitle: 'designed to make you rich',
+    image: require('@/assets/images/pages/page-3.png'),
   }
 ];
 
@@ -73,43 +52,17 @@ export default function HacksPreviewScreen({
   const [currentHeaderIndex, setCurrentHeaderIndex] = useState(0);
   const cardsRef = useRef<FlatList>(null);
   
-  // Category items renderer
-  const renderCategoryItem = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.categoryButton}>
-      <Text style={styles.categoryText}>{item.title}</Text>
-      <Text style={styles.categoryIcon}>{item.icon}</Text>
-    </TouchableOpacity>
-  );
-  
   // Card content renderer
-  const renderCard = ({ item, index }: { item: any; index: number }) => {
-    if (index === 0) {
-      // Categories card
+  const renderCard = ({ item }: { item: any }) => {
       return (
         <View style={styles.cardContainer}>
-          <View style={styles.categoriesContainer}>
-            <FlatList
-              data={categoriesData}
-              renderItem={renderCategoryItem}
-              keyExtractor={category => category.id}
-              scrollEnabled={false}
-            />
-          </View>
+        <Image
+          style={styles.pageImage}
+          resizeMode="cover"
+          source={item.image}
+        />
         </View>
       );
-    } else {
-      // Content cards (Money hack or Dating hack)
-      return (
-        <View style={styles.cardContainer}>
-          <View style={styles.contentCard}>
-            <Text style={styles.contentText}>{contentCards[index-1].content}</Text>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logoText}>winspire</Text>
-            </View>
-          </View>
-        </View>
-      );
-    }
   };
   
   // Handle card swipe
@@ -117,16 +70,8 @@ export default function HacksPreviewScreen({
     const { contentOffset } = event.nativeEvent;
     const index = Math.round(contentOffset.x / width);
     
-    // Set both card index and header index
     setCurrentCardIndex(index);
-    
-    // Update header based on card position
-    // Categories card shows first header, content cards show respective headers
-    if (index === 0) {
-      setCurrentHeaderIndex(0);
-    } else {
       setCurrentHeaderIndex(index);
-    }
   };
 
   if (!visible) return null;
@@ -149,9 +94,9 @@ export default function HacksPreviewScreen({
       {/* Scrollable Card Area */}
       <FlatList
         ref={cardsRef}
-        data={[{ id: 'categories' }, ...contentCards]} // Categories card + content cards
+        data={headerData}
         renderItem={renderCard}
-        keyExtractor={(item, index) => index.toString()}
+        keyExtractor={(item) => item.id}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -174,18 +119,11 @@ export default function HacksPreviewScreen({
       
       {/* Footer Area */}
       <View style={styles.footerArea}>
-        {currentCardIndex === 0 ? (
           <Text style={styles.legalText}>
             By tapping "Try For Free" you agree to our{' '}
             <Text style={styles.link}>terms of use</Text> and{' '}
             <Text style={styles.link}>privacy policy</Text>
           </Text>
-        ) : (
-          <View style={styles.noPaymentRow}>
-            <Text style={styles.checkmark}>✓</Text>
-            <Text style={styles.noPaymentText}>No payment due now</Text>
-          </View>
-        )}
         
         <TouchableOpacity 
           style={styles.tryButton}
@@ -196,26 +134,12 @@ export default function HacksPreviewScreen({
         </TouchableOpacity>
         
         <Text style={styles.freeTrialText}>
-          3 days free, than $6,49 per week
+          3 days free, then $6.49 per week
         </Text>
         
-        {currentCardIndex === 0 ? (
           <TouchableOpacity>
             <Text style={styles.restoreText}>Restore purchase</Text>
           </TouchableOpacity>
-        ) : (
-          <View style={styles.legalLinks}>
-            <TouchableOpacity>
-              <Text style={styles.smallLink}>Terms of use</Text>
-            </TouchableOpacity>
-            <TouchableOpacity>
-              <Text style={styles.smallLink}>Restore purchase</Text>
-            </TouchableOpacity>
-            <TouchableOpacity>
-              <Text style={styles.smallLink}>Privacy policy</Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
     </View>
   );
@@ -270,56 +194,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: horizontalScale(20),
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  categoriesContainer: {
-    width: '100%',
-    backgroundColor: '#111',
-    borderRadius: moderateScale(16),
-    padding: moderateScale(16),
-  },
-  categoryButton: {
-    width: '100%',
-    height: verticalScale(60),
-    backgroundColor: '#000',
-    borderRadius: moderateScale(8),
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: verticalScale(10),
-    paddingHorizontal: horizontalScale(20),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  categoryText: {
-    color: Colors.white,
-    fontSize: moderateScale(18),
-    fontFamily: 'SFProMedium',
-  },
-  categoryIcon: {
-    fontSize: moderateScale(24),
-  },
-  contentCard: {
-    width: width - horizontalScale(40),
-    backgroundColor: '#f5f5f5',
-    borderRadius: moderateScale(16),
-    padding: moderateScale(20),
-    minHeight: verticalScale(300),
-    justifyContent: 'space-between',
-  },
-  contentText: {
-    color: '#000',
-    fontSize: moderateScale(16),
-    lineHeight: moderateScale(22),
-    fontFamily: 'SFProRegular',
-  },
-  logoContainer: {
-    alignItems: 'flex-end',
-    marginTop: verticalScale(10),
-  },
-  logoText: {
-    color: '#000',
-    fontSize: moderateScale(16),
-    fontFamily: 'SFProBold',
   },
   dotContainer: {
     flexDirection: 'row',
@@ -377,30 +251,9 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(14),
     textDecorationLine: 'underline',
   },
-  noPaymentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: verticalScale(16),
-  },
-  checkmark: {
-    color: Colors.white,
-    fontSize: moderateScale(16),
-    marginRight: horizontalScale(8),
-  },
-  noPaymentText: {
-    color: Colors.white,
-    fontSize: moderateScale(14),
-  },
-  legalLinks: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginTop: verticalScale(10),
-  },
-  smallLink: {
-    color: Colors.white,
-    fontSize: moderateScale(12),
-    textDecorationLine: 'underline',
+  pageImage: {
+    width: width * 0.85,
+    height: verticalScale(400),
+    borderRadius: moderateScale(16),
   },
 });

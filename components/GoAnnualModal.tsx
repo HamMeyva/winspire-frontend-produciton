@@ -26,7 +26,6 @@ import { Colors } from "@/constants/Colors";
 import { STORAGE } from "@/utils/storage";
 
 // context
-import { usePurchase } from "@/context/purchase";
 import { userStore } from "@/context/store";
 
 const { width, height } = Dimensions.get("window");
@@ -34,48 +33,38 @@ const { width, height } = Dimensions.get("window");
 export default function GoAnnualModal({
   goAnnualModalVisible,
   close,
+  purchaseRegularAnnual,
+  purchaseWeekly,
+  regularAnnualPrice,
+  weeklyPrice,
 }: {
   goAnnualModalVisible: boolean;
   close: (purchased?: boolean) => void;
+  purchaseRegularAnnual: () => Promise<void>;
+  purchaseWeekly: () => Promise<void>;
+  regularAnnualPrice: string;
+  weeklyPrice: string;
 }) {
-  const {
-    packages,
-    purchasePremium,
-    isLoading: isPurchaseLoading,
-    isPremium,
-  } = usePurchase();
-
   const [selectedPlan, setSelectedPlan] = useState<"WEEKLY" | "ANNUAL">("ANNUAL");
   const [remainingTime, setRemainingTime] = useState(59);
 
-  const annualPackage = packages.find((p) => p.packageType === "ANNUAL");
-  const weeklyPackage = packages.find((p) => p.packageType === "WEEKLY");
-
   const handlePurchase = async () => {
-    // Always use the annual package for consistency between InfoPage and SettingsPage
-    const packageToPurchase = annualPackage;
-    if (!packageToPurchase) {
-      console.error("Annual package not found");
-      close(false); // Close if package not found
-      return;
-    }
-
     try {
-      await purchasePremium(packageToPurchase);
-      // It's generally better to rely on the purchase flow to update isPremium
-      // and then react to isPremium changes rather than checking immediately.
-      // However, for the modal closing logic:
-      if (isPremium) { // Check isPremium state after purchase attempt
-        userStore.setIsSubscribed(true); // This should ideally be driven by entitlement updates
-        // Set subscription type to annual
-        await STORAGE.setSubscriptionType('annual');
-        close(true); // Close modal on successful purchase indication
+      if (selectedPlan === "WEEKLY") {
+        await purchaseWeekly();
       } else {
-        // If not immediately premium (e.g. purchase failed, or status update is delayed)
-        // Still close the modal to not leave the user hanging.
-        // The parent component will decide if LTO should be shown.
-        close(false); 
+        await purchaseRegularAnnual();
       }
+      
+      // Update subscription type based on purchase
+      if (selectedPlan === "ANNUAL") {
+        await STORAGE.setSubscriptionType('annual');
+      } else {
+        await STORAGE.setSubscriptionType('weekly');
+      }
+      
+      userStore.setIsSubscribed(true);
+      close(true); // Close modal on successful purchase
     } catch (error) {
       console.error("Purchase failed", error);
       close(false); // Close modal on purchase error
@@ -128,7 +117,7 @@ export default function GoAnnualModal({
           </View>
           
           <Text style={styles.upgradeText}>Upgrade Now &</Text>
-          <Text style={styles.saveText}>Save 70%!</Text>
+          <Text style={styles.saveText}>Save 55%!</Text>
         </View>
 
         <View style={styles.promotionTextsContainer}>
@@ -190,7 +179,7 @@ export default function GoAnnualModal({
               <View style={styles.planButtonTextContainer}>
                 <Text style={styles.planButton1Text1}>Weekly</Text>
                 <Text style={styles.planButton1Text2}>
-                  {weeklyPackage?.product.priceString || '$?.??'}
+                  {weeklyPrice}
                 </Text>
                 <Text style={styles.planButton1Text3}>
                   Per Week
@@ -236,17 +225,17 @@ export default function GoAnnualModal({
               <View style={styles.planButtonBackgroundContainer2}>
                 <View style={styles.planButtonBackgroundContainerHeader}>
                   <Text style={styles.planButtonBackgroundContainerHeaderText}>
-                    SAVE %70
+                    SAVE %55
                   </Text>
                 </View>
 
                 <View style={styles.planButtonTextContainer2}>
                   <Text style={styles.planButton2Text1}>Annual</Text>
                   <Text style={styles.planButton2Text2}>
-                    {annualPackage?.product.priceString || '$??.??'}
+                    {regularAnnualPrice}
                   </Text>
                   <Text style={styles.planButton2Text3}>
-                    (Save 70% - {weeklyPackage ? annualPackage?.product.priceString : '$?.??'}/week)
+                    (Save 55% - {weeklyPrice}/week)
                   </Text>
                 </View>
               </View>
@@ -276,12 +265,11 @@ export default function GoAnnualModal({
         <Text style={styles.infoText}>✓ Cancel any time, no hidden fees</Text>
 
         <TouchableOpacity
-          disabled={isPurchaseLoading}
           onPress={handlePurchase}
           style={styles.upgradeButton}
         >
           <Text style={styles.upgradeButtonText}>
-            {isPurchaseLoading ? 'Processing...' : 'Upgrade & Save 70%'}
+            Upgrade & Save 55%
           </Text>
         </TouchableOpacity>
       </View>

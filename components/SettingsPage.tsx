@@ -44,9 +44,17 @@ const { height } = Dimensions.get("screen");
 const SettingsPage = ({
   closeBottomSheet,
   triggerLimitedTimeOffer,
+  purchaseRegularAnnual,
+  purchaseWeekly,
+  regularAnnualPrice,
+  weeklyPrice,
 }: {
   closeBottomSheet: () => void;
   triggerLimitedTimeOffer?: () => void;
+  purchaseRegularAnnual?: () => Promise<void>;
+  purchaseWeekly?: () => Promise<void>;
+  regularAnnualPrice?: string;
+  weeklyPrice?: string;
 }) => {
   const [messageSheetVisible, setMessageSheetVisible] = useState(false);
   const [goAnnualModalVisible, setGoAnnualModalVisible] = useState(false);
@@ -57,17 +65,25 @@ const SettingsPage = ({
   // Access subscription status from userStore
   const { isSubscribed } = userStore;
   
-  // For testing/development purposes, hardcode subscription type
-  // This would normally come from userStore.subscriptionType
-  const [subscriptionType, setSubscriptionType] = useState('weekly');
+  // Get actual subscription type from storage
+  const [subscriptionType, setSubscriptionType] = useState<string | null>(null);
 
-  // const [subscriptionType, setSubscriptionType] = useState(""); // No longer needed
-  // const [offerings, setOfferings] = useState<any>({}); // No longer used
+  // Load subscription type on component mount
+  useEffect(() => {
+    const loadSubscriptionType = async () => {
+      try {
+        const type = await STORAGE.getSubscriptionType();
+        setSubscriptionType(type);
+      } catch (error) {
+        console.error('Error loading subscription type:', error);
+        setSubscriptionType(null);
+      }
+    };
 
-  // const getOfferings = async () => { ... }; // Removed as offerings not used
-  // const getCustomerInfo = async () => { ... }; // Removed as subscriptionType not used
-
-  // useEffect(() => { ... }, []); // Removed as getOfferings and getCustomerInfo removed
+    if (isSubscribed) {
+      loadSubscriptionType();
+    }
+  }, [isSubscribed]);
 
   const handleCloseGoAnnualModal = (purchased?: boolean) => {
     setGoAnnualModalVisible(false);
@@ -144,7 +160,7 @@ const SettingsPage = ({
             </TouchableOpacity>
             
             {/* Show Go Annual button only for weekly subscribers */}
-            {isSubscribed && subscriptionType === 'weekly' ? (
+            {isSubscribed && subscriptionType === 'weekly' && (
               <TouchableOpacity
                 onPress={() => setGoAnnualModalVisible(true)}
                 style={styles.settingsButton}
@@ -156,18 +172,7 @@ const SettingsPage = ({
                   <Text style={styles.settingsButtonIcon}>💰</Text>
                 </View>
               </TouchableOpacity>
-            ) : isSubscribed && subscriptionType === 'annual' ? (
-              <TouchableOpacity
-                style={styles.settingsButton}
-              >
-                <View style={styles.settingsButtonTextContainer}>
-                  <Text style={styles.settingsButtonText}>
-                    You're on annual plan!
-                  </Text>
-                  <Text style={styles.settingsButtonIcon}>✅</Text>
-                </View>
-              </TouchableOpacity>
-            ) : null}
+            )}
 
             <TouchableOpacity
               onPress={async () => {
@@ -249,10 +254,14 @@ const SettingsPage = ({
           </View>
 
           {/* Modals remain the same */}
-          {goAnnualModalVisible && (
+          {goAnnualModalVisible && purchaseRegularAnnual && purchaseWeekly && regularAnnualPrice && weeklyPrice && (
             <GoAnnualModal
               goAnnualModalVisible={goAnnualModalVisible}
               close={handleCloseGoAnnualModal}
+              purchaseRegularAnnual={purchaseRegularAnnual}
+              purchaseWeekly={purchaseWeekly}
+              regularAnnualPrice={regularAnnualPrice}
+              weeklyPrice={weeklyPrice}
             />
           )}
           <HacksPreviewScreen

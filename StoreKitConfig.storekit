@@ -1,0 +1,118 @@
+{
+  "identifier" : "9BA0B9E5",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "1234567890",
+    "_developerTeamID" : "ABCDEF1234",
+    "_lastSynchronizedDate" : 713655210.82918596
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "20920964",
+      "localizations" : [
+        {
+          "description" : "Access all premium features",
+          "displayName" : "Winspire Premium",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Winspire Subscriptions",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "9.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "3EBF2B2C",
+          "introductoryOffer" : {
+            "internalID" : "F1ED7F1E",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
+          "localizations" : [
+            {
+              "description" : "Weekly subscription with 3-day free trial",
+              "displayName" : "Weekly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.soundayou.windspire.premium.week",
+          "recurringSubscriptionPeriod" : "P1W",
+          "referenceName" : "Weekly Subscription",
+          "subscriptionGroupID" : "20920964",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "59.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "1A828BFA",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Annual subscription",
+              "displayName" : "Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.soundayou.windspire.premium.year",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Annual Subscription",
+          "subscriptionGroupID" : "20920964",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+            {
+              "displayPrice" : "39.99",
+              "internalID" : "3F72B5D9",
+              "paymentMode" : "payUpFront",
+              "referenceName" : "Special Sale",
+              "subscriptionPeriod" : "P1Y"
+            }
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "49.99",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "2B939CDE",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Special annual subscription offer",
+              "displayName" : "Annual Special",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.soundayou.windspire.premium.annual.special",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Annual Special Subscription",
+          "subscriptionGroupID" : "20920964",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 2,
+    "minor" : 0
+  }
+}

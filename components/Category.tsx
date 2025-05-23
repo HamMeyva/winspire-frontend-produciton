@@ -85,10 +85,20 @@ function Category({
     return title;
   };
 
-  const categoryData =
-    categoriesStore.categories[categoryName][
-      Object.keys(categoriesStore.categories[categoryName])[index]
-    ];
+  const categoryData = (() => {
+    try {
+      const categoryGroup = categoriesStore.categories[categoryName];
+      if (!categoryGroup) return null;
+      
+      const categoryKeys = Object.keys(categoryGroup);
+      if (!categoryKeys || categoryKeys.length <= index) return null;
+      
+      return categoryGroup[categoryKeys[index]];
+    } catch (error) {
+      console.error('Error accessing category data:', error);
+      return null;
+    }
+  })();
     
   // Keep track of content count to detect new content
   const [hasNewContent, setHasNewContent] = useState(false);
@@ -109,7 +119,8 @@ function Category({
         const activeContentType = contentTypeStore.activeContentType;
         
         // Get the category key from the title
-        const categoryKey = Object.keys(categoriesStore.categories[categoryName])[index];
+        const categoryKeys = Object.keys(categoriesStore.categories[categoryName] || {});
+        const categoryKey = categoryKeys[index];
         
         // Create a unique key for this category and content type
         const storageKey = `${activeContentType}_${categoryKey}_newContent`;
@@ -138,7 +149,8 @@ function Category({
           const activeContentType = contentTypeStore.activeContentType;
           
           // Get the category key from the title
-          const categoryKey = Object.keys(categoriesStore.categories[categoryName])[index];
+          const categoryKeys = Object.keys(categoriesStore.categories[categoryName] || {});
+          const categoryKey = categoryKeys[index];
           
           // Create a unique key for this category and content type
           const storageKey = `${activeContentType}_${categoryKey}_newContent`;

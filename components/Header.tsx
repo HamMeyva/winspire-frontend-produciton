@@ -87,7 +87,7 @@ export default function Header({
             <Image
               resizeMode="contain"
               source={require("@/assets/images/logo.png")}
-              style={[styles.logo, {tintColor: '#333333'}]}
+              style={[styles.logo, {tintColor: Colors.white}]}
             />
             
             {/* Green logo with clipping based on progress */}
@@ -107,7 +107,7 @@ export default function Header({
               onPress={onPressInfo}
               name="info"
               size={moderateScale(20)}
-              color={Colors.black}
+              color={Colors.white}
             />
           </View>
 
@@ -116,7 +116,7 @@ export default function Header({
               onPress={onPressSettings}
               name="settings"
               size={moderateScale(20)}
-              color={Colors.black}
+              color={Colors.white}
             />
           </View>
         </SafeAreaView>
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     width: horizontalScale(32),
     height: horizontalScale(32),
     borderRadius: horizontalScale(16),
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.black,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: '#000',
@@ -221,13 +221,13 @@ const styles = StyleSheet.create({
   progressBarContainer: {
     width: "88%",
     alignSelf: "center",
-    height: verticalScale(5),
+    height: verticalScale(15),
     backgroundColor: "#333333",
-    borderRadius: moderateScale(2.5),
+    borderRadius: moderateScale(10),
   },
 
   progressBar: {
-    height: "100%",
+    height: "200%",
     backgroundColor: Colors.green,
     borderTopLeftRadius: moderateScale(2.5),
     borderBottomLeftRadius: moderateScale(2.5),

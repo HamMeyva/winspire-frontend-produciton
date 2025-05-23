@@ -32,9 +32,17 @@ const { width } = Dimensions.get("window");
 export default function InfoPage({
   closeBottomSheet,
   triggerLimitedTimeOffer,
+  purchaseRegularAnnual,
+  purchaseWeekly,
+  regularAnnualPrice,
+  weeklyPrice,
 }: {
   closeBottomSheet: () => void;
   triggerLimitedTimeOffer?: () => void;
+  purchaseRegularAnnual?: () => Promise<void>;
+  purchaseWeekly?: () => Promise<void>;
+  regularAnnualPrice?: string;
+  weeklyPrice?: string;
 }) {
   const [goAnnualModalVisible, setGoAnnualModalVisible] = useState(false);
   const [infoBottomSheetPage, setInfoBottomSheetPage] = useState<number>(0);
@@ -283,10 +291,14 @@ export default function InfoPage({
           </View>
         )}
 
-        {goAnnualModalVisible && (
+        {goAnnualModalVisible && purchaseRegularAnnual && purchaseWeekly && regularAnnualPrice && weeklyPrice && (
           <GoAnnualModal
             goAnnualModalVisible={goAnnualModalVisible}
             close={handleCloseGoAnnualModal}
+            purchaseRegularAnnual={purchaseRegularAnnual}
+            purchaseWeekly={purchaseWeekly}
+            regularAnnualPrice={regularAnnualPrice}
+            weeklyPrice={weeklyPrice}
           />
         )}
       </BottomSheetView>

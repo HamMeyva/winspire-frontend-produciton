@@ -40,18 +40,18 @@ import { userStore } from './store'; // Import userStore
 
 // RevenueCat API keys
 const REVENUECAT_API_KEYS = {
-  ios: 'appl_TaLTvwpygoiZhOCYceJEewBuouG', // Apple App Store API key
+  ios: 'appl_bppzyuedUPPlOMcnNVnaqDLFLGu', // Apple App Store API key
   android: 'YOUR_ANDROID_API_KEY', // Google Play API key - değiştirmeniz gerekecek
 };
 
 // Entitlement ID'leri
 export const ENTITLEMENTS = {
-  premium: 'Pro', // Changed to 'Pro' to match _layout.tsx and memory
+  premium: 'premium', // Exactly matching the 'premium' entitlement ID from your dashboard
 };
 
 // Offerings ID'leri
 export const OFFERINGS = {
-  premium: 'premium_offering', // RevenueCat'te oluşturduğunuz offering ID'si
+  premium: 'default', // Exactly matching the 'default' offering ID from your dashboard
 };
 
 // Context tipleri
