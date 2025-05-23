@@ -53,6 +53,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE } from "@/utils/storage";
 import { API } from "@/utils/api";
 
+// Constants
+const REVENUECAT_API_KEY = 'appl_TaLTvwpygoiZhOCYceJEewBuouG';
+const PREMIUM_ENTITLEMENT_ID = 'Pro';
+
 const { width } = Dimensions.get("screen");
 
 function Main() {
@@ -843,6 +847,3 @@ const styles = StyleSheet.create({
     paddingBottom: verticalScale(5),
   },
 });
-
-const REVENUECAT_API_KEY = 'appl_TaLTvwpygoiZhOCYceJEewBuouG';
-const PREMIUM_ENTITLEMENT_ID = 'Pro';

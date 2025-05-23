@@ -2,13 +2,6 @@ import { useEffect, useState, useRef } from "react";
 import { Image } from "expo-image";
 import { Text, StyleSheet, Pressable, View, Dimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import FontAwesome from "@expo/vector-icons/FontAwesome";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import AntDesign from "@expo/vector-icons/AntDesign";
-import Entypo from "@expo/vector-icons/Entypo";
 
 // constants
 import {
@@ -75,7 +68,7 @@ function Category({
     
     // For other content types (hack, hack2), keep the original title
     // If title is too long, handle line breaks
-    if (title.length > 18) {
+    if (title.length > 14) { // Reduced character count to match image
       const words = title.split(" ");
       
       // If there are only 2 or fewer words, just return the title
@@ -109,77 +102,77 @@ function Category({
     const currentContentCount = categoryData.content?.length || 0;
     const currentPublishedContentCount = categoryData.content?.filter((item: { status: string }) => item.status === 'published')?.length || 0;
     
-    console.log(`Category ${title}: Current published count: ${currentPublishedContentCount}, Previous: ${previousPublishedContentCountRef.current}`);
-    
-    // Always run the comparison, even on the first check
-    if (previousPublishedContentCountRef.current > 0 && 
-        currentPublishedContentCount > previousPublishedContentCountRef.current) {
-      console.log(`Category ${title}: New published content detected!`);
-      // Force the icon to be white by setting hasNewContent true
-      setHasNewContent(true);
-      
-      // Store this category's new content state in AsyncStorage directly
-      // We'll use AsyncStorage directly to avoid potential issues with STORAGE object
-      const key = `category_${categoryName}_${index}_hasNewContent`;
-      AsyncStorage.setItem(key, 'true');
-    }
-    
-    // Update the reference counts
-    previousContentCountRef.current = currentContentCount;
-    previousPublishedContentCountRef.current = currentPublishedContentCount;
-  }, [categoryData?.content?.length, categoryData?.content, categoryName, index]);
-  
-  // Check for saved new content status and reset flag when all content is viewed
-  useEffect(() => {
     // First check if we have a stored value for this category's new content state
     const checkStoredNewContentStatus = async () => {
       try {
-        // Use AsyncStorage directly
-        const key = `category_${categoryName}_${index}_hasNewContent`;
-        const storedValue = await AsyncStorage.getItem(key);
-        if (storedValue === 'true') {
+        // Get the active content type
+        const activeContentType = contentTypeStore.activeContentType;
+        
+        // Get the category key from the title
+        const categoryKey = Object.keys(categoriesStore.categories[categoryName])[index];
+        
+        // Create a unique key for this category and content type
+        const storageKey = `${activeContentType}_${categoryKey}_newContent`;
+        
+        // Check if we have a stored value
+        const storedNewContentStatus = await AsyncStorage.getItem(storageKey);
+        
+        if (storedNewContentStatus === 'true') {
           setHasNewContent(true);
         }
       } catch (error) {
-        console.error('Error reading hasNewContent from storage:', error);
+        console.error('Error checking stored new content status:', error);
       }
     };
     
     checkStoredNewContentStatus();
     
-    // Reset new content flag when all content is viewed
-    if (completed === "true" && categoryData?.content) {
-      const currentPublishedCount = categoryData.content.filter((item: { status: string }) => item.status === 'published').length;
+    // If this is not the first render and we have more content than before, mark as having new content
+    if (previousContentCountRef.current > 0 && currentContentCount > previousContentCountRef.current) {
+      setHasNewContent(true);
       
-      if (previousPublishedContentCountRef.current === currentPublishedCount) {
-        console.log(`Category ${title}: All content viewed and no new content detected`);
-        setHasNewContent(false);
-        // Clear the stored new content flag
-        const key = `category_${categoryName}_${index}_hasNewContent`;
-        AsyncStorage.removeItem(key);
-      } else {
-        console.log(`Category ${title}: New content detected, keeping icon white despite completed status`);
-        setHasNewContent(true);
-      }
+      // Store this state for future app launches
+      const storeNewContentStatus = async () => {
+        try {
+          // Get the active content type
+          const activeContentType = contentTypeStore.activeContentType;
+          
+          // Get the category key from the title
+          const categoryKey = Object.keys(categoriesStore.categories[categoryName])[index];
+          
+          // Create a unique key for this category and content type
+          const storageKey = `${activeContentType}_${categoryKey}_newContent`;
+          
+          // Store that this category has new content
+          await AsyncStorage.setItem(storageKey, 'true');
+        } catch (error) {
+          console.error('Error storing new content status:', error);
+        }
+      };
+      
+      storeNewContentStatus();
     }
-  }, [completed, categoryData?.content, categoryName, index]);
+    
+    // Update refs for next comparison
+    previousContentCountRef.current = currentContentCount;
+    previousPublishedContentCountRef.current = currentPublishedContentCount;
+  }, [categoryData, categoryName, index]);
 
   // Map category names to their respective icons
   const getIconSource = () => {
-    // Determine icon state based on completion and new content
-    // IMPORTANT: If we have new content (hasNewContent=true), ALWAYS use default icon (white)
-    // regardless of completed status
-    // Otherwise, use completed icon (green) if all content is viewed
-    // When new published content arrives, icon resets to white (hasNewContent becomes true)
-    const isCompleted = completed === "true" && !hasNewContent;
-    
-    // Debug log for icon state
-    console.log(`Category ${title}: completed=${completed}, hasNewContent=${hasNewContent}, using isCompleted=${isCompleted}`);
+    // Determine if the category is completed
+    const isCompleted = completed === "true";
     
     // Get the active content type
     const activeContentType = contentTypeStore.activeContentType;
     
-    // Define all icons for different content types
+    // Convert title to lowercase for easier comparison
+    const titleLower = title.toLowerCase();
+    
+    // Initialize category key
+    let categoryKey = "";
+    
+    // Map of icons for each category and completion state
     const icons: { [key: string]: any } = {
       // Hack content type icons
       "dating_default": require("@/assets/images/icons/Dating Hacks Default.png"),
@@ -190,9 +183,8 @@ function Category({
       "power_completed": require("@/assets/images/icons/Power Hacks Completed.png"),
       "survival_default": require("@/assets/images/icons/Survival Hacks Default.png"),
       "survival_completed": require("@/assets/images/icons/Survival Hacks Completed.png"),
-      // Using Mind Hacks images as fallbacks for Trend Hacks
-      "trend_default": require("@/assets/images/icons/Mind Hacks Default.png"),
-      "trend_completed": require("@/assets/images/icons/Mind Hacks Completed.png"),
+      "trend_default": require("@/assets/images/icons/Trend Hacks Default.png"),
+      "trend_completed": require("@/assets/images/icons/Trend Hacks Completed.png"),
       
       // Hack2 content type icons
       "tinder_default": require("@/assets/images/icons/Tinder Hacks Default.png"),
@@ -203,10 +195,10 @@ function Category({
       "mind_completed": require("@/assets/images/icons/Mind Hacks Completed.png"),
       "loophole_default": require("@/assets/images/icons/Loophole Hacks Default.png"),
       "loophole_completed": require("@/assets/images/icons/Loophole Hacks Green.png"),
-      "business_default": require("@/assets/images/icons/Money Hacks Default.png"),
-      "business_completed": require("@/assets/images/icons/Money Hacks Completed.png"),
+      "business_default": require("@/assets/images/icons/Business-hacks-default.png"),
+      "business_completed": require("@/assets/images/icons/Business-hacks-completed.png"),
       
-      // Tips content type icons
+      // Tip content type icons
       "dating_tips_default": require("@/assets/images/icons/Dating Tips Default.png"),
       "dating_tips_completed": require("@/assets/images/icons/Dating Tips Completed.png"),
       "finance_default": require("@/assets/images/icons/Finance Tips Default.png"),
@@ -218,44 +210,21 @@ function Category({
       "social_default": require("@/assets/images/icons/Social Tips Default.png"),
       "social_completed": require("@/assets/images/icons/Social Tips Completed.png"),
       
-      // Tips2 content type icons - using existing icons as fallbacks
-      // Career & Leadership -> using Mindset Tips icons
-      "career_leadership_default": require("@/assets/images/icons/Mindset Tips Default.png"),
-      "career_leadership_completed": require("@/assets/images/icons/Mindset Tips Completed.png"),
-      // Productivity & Time Management -> using Finance Tips icons
-      "productivity_time_default": require("@/assets/images/icons/Finance Tips Default.png"),
-      "productivity_time_completed": require("@/assets/images/icons/Finance Tips Completed.png"),
-      // Creative Thinking & Problem-Solving -> using Mind Hacks icons
-      "creative_thinking_default": require("@/assets/images/icons/Mind Hacks Default.png"),
-      "creative_thinking_completed": require("@/assets/images/icons/Mind Hacks Completed.png"),
-      // Psychology & Influence -> using Social Tips icons
-      "psychology_influence_default": require("@/assets/images/icons/Social Tips Default.png"),
-      "psychology_influence_completed": require("@/assets/images/icons/Social Tips Completed.png"),
-      // Wisdom & Learning -> using Fitness Tips icons
-      "wisdom_learning_default": require("@/assets/images/icons/Fitness Tips Default.png"),
-      "wisdom_learning_completed": require("@/assets/images/icons/Fitness Tips Completed.png")
+      // Tip2 content type icons
+      "career_default": require("@/assets/images/icons/Career Tips Default.png"),
+      "career_completed": require("@/assets/images/icons/Career Tips Completed.png"),
+      "productivity_default": require("@/assets/images/icons/Productivity Tips Default.png"),
+      "productivity_completed": require("@/assets/images/icons/Productivity Tips Completed.png"),
+      "creative_default": require("@/assets/images/icons/Creative Tips Default.png"),
+      "creative_completed": require("@/assets/images/icons/Creative Tips Completed.png"),
+      "psychology_default": require("@/assets/images/icons/Psychology Tips Default.png"),
+      "psychology_completed": require("@/assets/images/icons/Psychology Tips Completed.png"),
+      "wisdom_learning_default": require("@/assets/images/icons/Wisdom Tips Default.png"),
+      "wisdom_learning_completed": require("@/assets/images/icons/Wisdom Tips Completed.png"),
     };
     
-    // Determine which category this is based on title and content type
-    let categoryKey = "";
-    const titleLower = title.toLowerCase();
-    
-    // Handle Tips2 content type categories (Career & Leadership, etc.)
-    if (activeContentType === 'tip2') {
-      if (titleLower.includes("career") || titleLower.includes("leadership")) {
-        categoryKey = "career_leadership";
-      } else if (titleLower.includes("productivity") || titleLower.includes("time management")) {
-        categoryKey = "productivity_time";
-      } else if (titleLower.includes("creative") || titleLower.includes("problem-solving")) {
-        categoryKey = "creative_thinking";
-      } else if (titleLower.includes("psychology") || titleLower.includes("influence")) {
-        categoryKey = "psychology_influence";
-      } else if (titleLower.includes("wisdom") || titleLower.includes("learning")) {
-        categoryKey = "wisdom_learning";
-      }
-    }
     // Handle Hack content type categories
-    else if (activeContentType === 'hack') {
+    if (activeContentType === 'hack') {
       if (titleLower.includes("dating")) {
         categoryKey = "dating";
       } else if (titleLower.includes("money")) {
@@ -296,6 +265,20 @@ function Category({
         categoryKey = "social";
       }
     }
+    // Handle Tips2 content type categories
+    else if (activeContentType === 'tip2') {
+      if (titleLower.includes("career") || titleLower.includes("leadership")) {
+        categoryKey = "career";
+      } else if (titleLower.includes("productivity") || titleLower.includes("time")) {
+        categoryKey = "productivity";
+      } else if (titleLower.includes("creative") || titleLower.includes("problem")) {
+        categoryKey = "creative";
+      } else if (titleLower.includes("psychology") || titleLower.includes("influence")) {
+        categoryKey = "psychology";
+      } else if (titleLower.includes("wisdom") || titleLower.includes("learning")) {
+        categoryKey = "wisdom_learning";
+      }
+    }
     
     // Default fallback if no match is found
     if (!categoryKey) {
@@ -333,7 +316,7 @@ function Category({
 
       {completed === "true" && (
         <View style={styles.completedContainer}>
-          <Text style={styles.completedText}>Done. Updates in 24h.</Text>
+          <Text style={styles.completedText}>Done. Updates in 24h</Text>
         </View>
       )}
     </Pressable>
@@ -343,22 +326,22 @@ function Category({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    height: verticalScale(90),
+    height: verticalScale(100), // Increased to match image exactly
     borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.black,
     borderColor: "#333333",
-    borderRadius: moderateScale(16),
+    borderRadius: moderateScale(16), // Adjusted to match image exactly
     justifyContent: "space-between",
-    paddingHorizontal: horizontalScale(20),
-    paddingVertical: verticalScale(16),
-    marginBottom: verticalScale(16),
+    paddingHorizontal: horizontalScale(20), // Adjusted to match image exactly
+    paddingVertical: verticalScale(16), // Adjusted to match image exactly
+    marginBottom: verticalScale(16), // Adjusted to match image exactly
     position: "relative",
   },
 
   titleContainer: {
-    width: width * 0.7,
+    width: width * 0.65, // Adjusted width to match image
     flexDirection: "column",
     justifyContent: "center",
   },
@@ -366,14 +349,14 @@ const styles = StyleSheet.create({
   title: {
     fontWeight: "bold",
     color: Colors.white,
-    fontFamily: "SFProBold",
-    fontSize: moderateScale(24),
-    lineHeight: moderateScale(30),
+    fontFamily: "SFProBold", // SF Pro Bold for titles as specified
+    fontSize: moderateScale(28), // Increased to match image exactly
+    lineHeight: moderateScale(26), // Adjusted to match image exactly
   },
 
   iconWrapper: {
-    height: verticalScale(48),
-    width: horizontalScale(48),
+    height: verticalScale(48), // Increased to match image exactly
+    width: horizontalScale(48), // Increased to match image exactly
     justifyContent: "center",
     alignItems: "center",
   },
@@ -383,16 +366,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  
-  dollarSign: {
-    position: "absolute",
-    fontSize: moderateScale(20),
-    fontWeight: "bold",
-  },
 
   image: {
-    height: verticalScale(48),
-    width: horizontalScale(48),
+    height: verticalScale(60), // Increased to match image exactly
+    width: horizontalScale(60), // Increased to match image exactly
   },
 
   completedContainer: {
@@ -400,18 +377,19 @@ const styles = StyleSheet.create({
     position: "absolute",
     justifyContent: "center",
     left: horizontalScale(16),
-    height: verticalScale(22),
-    bottom: verticalScale(-11),
-    width: horizontalScale(180),
-    backgroundColor: "#4f9ef4",
-    borderRadius: moderateScale(6),
+    height: verticalScale(22), // Increased to match image exactly
+    bottom: verticalScale(-11), // Adjusted position to match image exactly
+    width: horizontalScale(170), // Adjusted width to match image exactly
+    backgroundColor: Colors.blue, // Blue as shown in the image
+    borderRadius: moderateScale(6), // Adjusted to match image exactly
   },
 
   completedText: {
     color: Colors.white,
-    fontFamily: "SFProBold",
-    fontSize: moderateScale(11),
+    fontFamily: "SFProMedium",
+    fontSize: moderateScale(11), // Increased to match image exactly
+    letterSpacing: -0.2, // Slight negative letter spacing for exact match
   },
 });
 
-export default Category;
+export default observer(Category);
