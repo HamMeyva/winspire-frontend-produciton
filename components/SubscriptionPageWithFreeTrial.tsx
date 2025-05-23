@@ -5,14 +5,14 @@ import {
   Dimensions,
   TouchableOpacity,
   Image,
-  ScrollView,
   Modal,
   Pressable,
-  FlatList,
+  PanResponder,
+  Animated,
+  ScrollView,
 } from "react-native";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 
 // constants
@@ -35,6 +35,66 @@ export default function SubscriptionPageWithFreeTrial({
   restorePurchases: () => void;
 }) {
   const [page, setPage] = useState(0);
+  const position = useRef(new Animated.Value(0)).current;
+  
+  // Create images array for easier rendering
+  const images = [
+    require("../assets/images/pages/page-1.png"),
+    require("../assets/images/pages/page-2.png"),
+    require("../assets/images/pages/page-3.png")
+  ];
+
+  // Pan responder for swipe gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gestureState) => {
+        // Only allow horizontal movement
+        if (Math.abs(gestureState.dx) > Math.abs(gestureState.dy)) {
+          // Limit movement to prevent swiping past first or last image
+          const newPosition = -page * width + gestureState.dx;
+          if (newPosition <= 0 && newPosition >= -width * (images.length - 1)) {
+            position.setValue(newPosition);
+          }
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // Determine if swipe was significant enough to change page
+        if (Math.abs(gestureState.dx) > width / 3) {
+          if (gestureState.dx > 0 && page > 0) {
+            // Swipe right - go to previous page
+            goToPage(page - 1);
+          } else if (gestureState.dx < 0 && page < images.length - 1) {
+            // Swipe left - go to next page
+            goToPage(page + 1);
+          } else {
+            // Snap back to current page
+            goToPage(page);
+          }
+        } else {
+          // Not a significant swipe, snap back
+          goToPage(page);
+        }
+      },
+    })
+  ).current;
+
+  // Function to animate to a specific page
+  const goToPage = (pageIndex: number) => {
+    Animated.spring(position, {
+      toValue: -pageIndex * width,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 7,
+    }).start();
+    setPage(pageIndex);
+  };
+  
+  // Initialize the first page on component mount
+  useEffect(() => {
+    // Make sure the first image is visible
+    position.setValue(0);
+  }, []);
 
   const [privacyPolicySheetVisible, setPrivacyPolicySheetVisible] =
     useState(false);
@@ -67,42 +127,44 @@ export default function SubscriptionPageWithFreeTrial({
           </Text>
         </View>
 
-        <View style={styles.pagesContainer}>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={(event: any) => {
-              const offsetX = event.nativeEvent.contentOffset.x;
-              const page = Math.floor(offsetX / width);
-              setPage(page);
-            }}
-            scrollEventThrottle={16}
+        <View style={styles.pagesContainer} {...panResponder.panHandlers}>
+          <Animated.View 
+            style={[
+              styles.carouselContainer,
+              { transform: [{ translateX: position }] }
+            ]}
           >
-            <View style={styles.pageContainer}>
-              <Image
-                style={styles.pageImage}
-                resizeMode="cover"
-                source={require("@/assets/images/pages/page-1.png")}
-              />
-            </View>
+            {images.map((image, index) => (
+              <View key={index} style={styles.pageContainer}>
+                <Image
+                  style={styles.pageImage}
+                  resizeMode="cover"
+                  source={image}
+                />
+              </View>
+            ))}
+          </Animated.View>
+          
+          {/* Manual navigation buttons (optional) */}
+          <View style={styles.navButtonsContainer}>
+            {page > 0 && (
+              <TouchableOpacity 
+                style={styles.navButton} 
+                onPress={() => goToPage(page - 1)}
+              >
+                <Text style={styles.navButtonText}>‹</Text>
+              </TouchableOpacity>
+            )}
             
-            <View style={styles.pageContainer}>
-              <Image
-                style={styles.pageImage}
-                resizeMode="cover"
-                source={require("@/assets/images/pages/page-2.png")}
-              />
-            </View>
-            
-            <View style={styles.pageContainer}>
-              <Image
-                style={styles.pageImage}
-                resizeMode="cover"
-                source={require("@/assets/images/pages/page-3.png")}
-              />
-            </View>
-          </ScrollView>
+            {page < images.length - 1 && (
+              <TouchableOpacity 
+                style={[styles.navButton, styles.navButtonRight]} 
+                onPress={() => goToPage(page + 1)}
+              >
+                <Text style={styles.navButtonText}>›</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <View style={styles.dotContainer}>
@@ -349,11 +411,20 @@ const styles = StyleSheet.create({
 
   pagesContainer: { 
     height: height * 0.5, 
-    marginTop: verticalScale(16) 
+    marginTop: verticalScale(16),
+    position: "relative",
+    overflow: "hidden"
+  },
+  
+  carouselContainer: {
+    flexDirection: "row",
+    width: width * 3, // Width of all pages combined
+    height: "100%",
   },
 
   pageContainer: {
     width: width,
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -362,6 +433,39 @@ const styles = StyleSheet.create({
     width: width * 0.85,
     height: height * 0.5,
     borderRadius: moderateScale(10),
+  },
+  
+  navButtonsContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: horizontalScale(10),
+    pointerEvents: "box-none",
+  },
+  
+  navButton: {
+    width: horizontalScale(40),
+    height: horizontalScale(40),
+    borderRadius: horizontalScale(20),
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  
+  navButtonRight: {
+    alignSelf: "flex-end",
+  },
+  
+  navButtonText: {
+    color: Colors.white,
+    fontSize: moderateScale(24),
+    fontWeight: "bold",
   },
 
   dotContainer: {

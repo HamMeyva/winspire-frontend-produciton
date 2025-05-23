@@ -12,6 +12,7 @@ import {
   Pressable,
   Modal,
   TextInput,
+  Alert,
 } from "react-native";
 import { useEffect, useState } from "react";
 import * as StoreReview from "expo-store-review";
@@ -20,6 +21,8 @@ import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import ActionManagerScreen from "./ActionManagerScreen";
 import { observer } from "mobx-react-lite";
 import { socialStore, userStore } from "@/context/store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 
 // constants
 import {
@@ -34,7 +37,7 @@ import GoAnnualModal from "@/components/GoAnnualModal";
 import HacksPreviewScreen from "@/components/HacksPreviewScreen";
 
 // utils
-// import { STORAGE } from "@/utils/storage"; // STORAGE.getSubscriptionType() was used, but section removed.
+import { STORAGE } from "@/utils/storage";
 
 const { height } = Dimensions.get("screen");
 
@@ -49,6 +52,7 @@ const SettingsPage = ({
   const [goAnnualModalVisible, setGoAnnualModalVisible] = useState(false);
   const [actionManagerVisible, setActionManagerVisible] = useState(false);
   const [hacksPreviewVisible, setHacksPreviewVisible] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Access subscription status from userStore
   const { isSubscribed } = userStore;
@@ -72,6 +76,45 @@ const SettingsPage = ({
     }
   };
 
+  const resetAppData = async () => {
+    try {
+      setIsResetting(true);
+      // Clear all AsyncStorage data
+      await AsyncStorage.clear();
+      
+      // Reset user store using the clearUserData method
+      userStore.clearUserData();
+      
+      // Close the bottom sheet
+      closeBottomSheet();
+      
+      // Navigate to the root/index page which should show the purchase screen
+      router.replace('/');
+      
+      console.log('App data has been reset successfully');
+    } catch (error) {
+      console.error('Error resetting app data:', error);
+      Alert.alert('Error', 'Failed to reset app data. Please try again.');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+  
+  const confirmReset = () => {
+    Alert.alert(
+      'Reset App Data',
+      'This will clear all app data and return you to the purchase screen. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reset', 
+          style: 'destructive',
+          onPress: resetAppData
+        }
+      ]
+    );
+  };
+
   return (
     <BottomSheet
       snapPoints={["65%"]} // Adjusted snap point to accommodate new layout potentially
@@ -86,6 +129,20 @@ const SettingsPage = ({
           <Text style={styles.title}>Settings</Text>
 
           <View style={styles.optionsContainer}>
+            {/* Reset App Data button */}
+            <TouchableOpacity
+              onPress={confirmReset}
+              style={[styles.settingsButton, styles.resetButton]}
+              disabled={isResetting}
+            >
+              <View style={styles.settingsButtonTextContainer}>
+                <Text style={styles.settingsButtonText}>
+                  Reset App Data
+                </Text>
+                <Text style={styles.settingsButtonIcon}>🔄</Text>
+              </View>
+            </TouchableOpacity>
+            
             {/* Show Go Annual button only for weekly subscribers */}
             {isSubscribed && subscriptionType === 'weekly' ? (
               <TouchableOpacity
@@ -294,10 +351,14 @@ const styles = StyleSheet.create({
     width: "100%", // Takes full width of optionsContainer
     alignSelf: "center",
     height: verticalScale(65), // Adjusted height
-    // backgroundColor: Colors.gray, // Moved to optionsContainer
-    // borderRadius: moderateScale(15), // Moved to optionsContainer or remove if items are borderless within group
-    // marginTop: verticalScale(12), // Removed, handled by optionsContainer padding/margins
-    justifyContent: 'center',
+    justifyContent: "center", // Center content vertically
+    paddingHorizontal: horizontalScale(20), // Padding on sides
+    borderBottomWidth: 1, // Thin separator between options
+    borderBottomColor: "#444", // Slightly lighter than background for subtle separation
+  },
+  resetButton: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#444",
   },
   settingsButtonTextContainer: {
     flexDirection: "row",
