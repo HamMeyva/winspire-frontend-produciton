@@ -297,121 +297,131 @@ const SwipeableFooter = observer(({
       </View>
 
       {/* Bottom tab bar */}
-      <View style={styles.tabContainer}>
-        {contentTypes.map((type, index) => {
-          const isActive = index === currentIndex;
-          return (
-            <TouchableOpacity
-              key={type}
-              style={[
-                styles.tabButton,
-                isActive && styles.activeTabButton
-              ]}
-              onPress={() => handleTabPress(type, index)}
-            >
-              <Text 
-                style={[
-                  styles.tabButtonText,
-                  isActive && styles.activeTabButtonText
-                ]}
-              >
-                {getDisplayName(type)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-        
-        {/* White indicator bar at bottom */}
-        <View style={styles.bottomIndicator} />
-      </View>
+<View style={styles.tabContainer}>
+  <View style={styles.tabButtonsContainer}>
+    {contentTypes.map((type, index) => {
+      const isActive = index === currentIndex;
+      return (
+        <TouchableOpacity
+          key={type}
+          style={[
+            styles.tabButton,
+            isActive && styles.activeTabButton
+          ]}
+          onPress={() => handleTabPress(type, index)}
+        >
+          <Text 
+            style={[
+              styles.tabButtonText,
+              isActive && styles.activeTabButtonText
+            ]}
+          >
+            {getDisplayName(type)}
+          </Text>
+        </TouchableOpacity>
+      );
+    })}
+  </View>
+  
+  {/* White indicator bar at bottom */}
+  <View style={styles.bottomIndicator} />
+</View>
     </View>
   );
 });
 
 export default SwipeableFooter;
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.black,
-  },
-  
-  contentArea: {
-    flex: 1,
-  },
-  
-  contentTypeContainer: {
-    width,
-    flex: 1,
-  },
-  
-  contentContainer: {
-    backgroundColor: Colors.black,
-    flex: 1,
-  },
-  
-  allCategoriesContainer: {
-    padding: horizontalScale(20),
-    paddingBottom: verticalScale(30),
-  },
-  
-  emptyContainer: {
-    padding: horizontalScale(20),
-    paddingVertical: verticalScale(40),
-    alignItems: 'center',
-  },
-  
-  emptyText: {
-    color: Colors.white,
-    textAlign: 'center',
-    fontFamily: 'SFProMedium',
-    fontSize: moderateScale(16),
-  },
-  
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.black,
-    paddingHorizontal: horizontalScale(16),
-    paddingVertical: verticalScale(16),
-    paddingBottom: verticalScale(30), // Add space for home indicator
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
-  tabButton: {
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: horizontalScale(20),
-    borderRadius: moderateScale(20),
-    marginHorizontal: horizontalScale(4),
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: horizontalScale(70),
-  },
-  
-  activeTabButton: {
-    backgroundColor: '#333333', // Dark gray background for active tab as shown in screenshot
-  },
-  
-  tabButtonText: {
-    color: Colors.white,
-    fontFamily: 'SFProMedium',
-    fontSize: moderateScale(14),
-    opacity: 0.6,
-  },
-  
-  activeTabButtonText: {
-    opacity: 1,
-    fontWeight: '800',
-  },
-  
-  bottomIndicator: {
-    position: 'absolute',
-    bottom: verticalScale(8),
-    left: '50%',
-    transform: [{ translateX: -horizontalScale(67) }], // Half of width to center
-    width: horizontalScale(134),
-    height: verticalScale(5),
-    backgroundColor: Colors.white,
-    borderRadius: moderateScale(2.5),
-  },
-}); 
+    container: {
+      flex: 1,
+      backgroundColor: Colors.black,
+    },
+    
+    contentArea: {
+      flex: 1,
+    },
+    
+    contentTypeContainer: {
+      width,
+      flex: 1,
+    },
+    
+    contentContainer: {
+      backgroundColor: Colors.black,
+      flex: 1,
+    },
+    
+    allCategoriesContainer: {
+      padding: horizontalScale(20),
+      paddingBottom: verticalScale(30),
+    },
+    
+    emptyContainer: {
+      padding: horizontalScale(20),
+      paddingVertical: verticalScale(40),
+      alignItems: 'center',
+    },
+    
+    emptyText: {
+      color: Colors.white,
+      textAlign: 'center',
+      fontFamily: 'SFProMedium',
+      fontSize: moderateScale(16),
+    },
+    
+    tabContainer: {
+      backgroundColor: Colors.black,
+      paddingHorizontal: horizontalScale(16),
+      paddingVertical: verticalScale(16),
+      paddingBottom: verticalScale(30), // Add space for home indicator
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    
+    tabButtonsContainer: {
+      flexDirection: 'row',
+      backgroundColor: '#2A2A2A', // Dark gray pill background for all tabs
+      borderRadius: moderateScale(30),
+      padding: horizontalScale(5),
+    },
+    
+    tabButton: {
+      paddingVertical: verticalScale(14),
+      paddingHorizontal: horizontalScale(24),
+      borderRadius: moderateScale(22),
+      marginHorizontal: horizontalScale(2),
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: horizontalScale(80),
+      backgroundColor: 'transparent', // Transparent for inactive tabs
+    },
+    
+    activeTabButton: {
+      backgroundColor: '#505050', // Lighter gray for active tab on top of dark pill
+    },
+    
+    tabButtonText: {
+      color: Colors.white,
+      fontFamily: 'SFProMedium',
+      fontSize: moderateScale(15),
+      opacity: 0.5,
+      fontWeight: '500',
+    },
+    
+    activeTabButtonText: {
+      opacity: 1,
+      fontWeight: '900',
+      color: Colors.white,
+    },
+    
+    bottomIndicator: {
+      position: 'absolute',
+      bottom: verticalScale(8),
+      left: '50%',
+      transform: [{ translateX: -horizontalScale(67) }], // Half of width to center
+      width: horizontalScale(134),
+      height: verticalScale(5),
+      backgroundColor: Colors.white,
+      borderRadius: moderateScale(2.5),
+    },
+  });
