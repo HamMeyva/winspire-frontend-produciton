@@ -159,15 +159,26 @@ const SettingsPage = ({
               </View>
             </TouchableOpacity>
             
-            {/* Show Go Annual button only for weekly subscribers */}
-            {isSubscribed && subscriptionType === 'weekly' && (
+            {/* Show different content based on subscription status */}
+            {isSubscribed && subscriptionType === 'annual' ? (
+              // Thank you message for annual subscribers
+              <View style={styles.thankYouContainer}>
+                <View style={styles.settingsButtonTextContainer}>
+                  <Text style={styles.thankYouText}>
+                    Thank you for your membership
+                  </Text>
+                  <Text style={styles.settingsButtonIcon}>❤️</Text>
+                </View>
+              </View>
+            ) : (
+              // Go Annual button for weekly subscribers and free trial users
               <TouchableOpacity
                 onPress={() => setGoAnnualModalVisible(true)}
                 style={styles.settingsButton}
               >
                 <View style={styles.settingsButtonTextContainer}>
                   <Text style={styles.settingsButtonText}>
-                    Go annual & save %55
+                    Go annual & Save %55
                   </Text>
                   <Text style={styles.settingsButtonIcon}>💰</Text>
                 </View>
@@ -383,6 +394,20 @@ const styles = StyleSheet.create({
   },
   settingsButtonIcon: {
     fontSize: moderateScale(24), // Adjusted icon size
+  },
+  thankYouContainer: {
+    width: "100%", // Takes full width of optionsContainer
+    alignSelf: "center",
+    height: verticalScale(65), // Adjusted height
+    justifyContent: "center", // Center content vertically
+    paddingHorizontal: horizontalScale(20), // Padding on sides
+    borderBottomWidth: 1, // Thin separator between options
+    borderBottomColor: "#444", // Slightly lighter than background for subtle separation
+  },
+  thankYouText: {
+    color: Colors.white,
+    fontFamily: "SFProBold", // Assuming SFProBold, adjust if needed
+    fontSize: moderateScale(18), // Adjusted font size
   },
   sendMessageButton: {
     width: "90%",

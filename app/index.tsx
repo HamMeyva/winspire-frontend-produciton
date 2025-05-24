@@ -90,16 +90,31 @@ function Main() {
   const [categoryDone, setCategoryDone] = useState<any[]>([]);
 
   const updateCategoryDone = async () => {
+    // Check completion across ALL content types for app-wide progress (20 subcategories total)
+    const contentTypes = ['hack', 'hack2', 'tip', 'tip2'];
     const newCategoryDone = [];
+    
+    // Predefined category names for each content type (in consistent order)
+    const categoryNamesByType: Record<string, string[]> = {
+      'hack': ['Dating Hacks', 'Money Hacks', 'Power Hacks', 'Survival Hacks', 'Trend Hacks'],
+      'hack2': ['Business Hacks', 'Loophole Hacks', 'Mind Hacks', 'Tinder Hacks', 'Travel Hacks'],
+      'tip': ['Dating & Relationships', 'Finance & Wealth Building', 'Fitness & Nutrition', 'Mindset & Motivation', 'Social Skills'],
+      'tip2': ['Career & Leadership', 'Creative Thinking & Problem-Solving', 'Productivity & Time Management', 'Psychology & Influence', 'Wisdom & Learning']
+    };
 
-    for (let category of Object.keys(categoriesStore.categories)) {
-      for (let i = 0; i < 5; i++) {
-        const value = await STORAGE.getCategoryDone(category, i);
-
-        newCategoryDone.push(value);
+    // Check each content type's categories in order
+    for (const contentType of contentTypes) {
+      const categoryNames = categoryNamesByType[contentType];
+      if (categoryNames) {
+        for (const categoryName of categoryNames) {
+          // Check subcategory 0 for each category (only one subcategory per category matters for progress)
+          const value = await STORAGE.getCategoryDone(categoryName, 0);
+          newCategoryDone.push(value);
+        }
       }
     }
 
+    console.log(`DEBUG: App-wide progress check - ${newCategoryDone.filter(v => v === "true").length}/20 subcategories completed`);
     setCategoryDone(newCategoryDone);
   };
   
@@ -366,6 +381,16 @@ function Main() {
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
       console.log("DEBUG: Purchase successful for package:", packageToPurchase.identifier, "CustomerInfo:", customerInfo.entitlements.active);
       updateSubscriptionStatus(customerInfo); // Update UI immediately
+      
+      // Store subscription type based on package type
+      let subscriptionType = 'weekly'; // default
+      if (packageToPurchase.packageType === Purchases.PACKAGE_TYPE.ANNUAL) {
+        subscriptionType = 'annual';
+      } else if (packageToPurchase.packageType === Purchases.PACKAGE_TYPE.WEEKLY) {
+        subscriptionType = 'weekly';
+      }
+      await STORAGE.setSubscriptionType(subscriptionType);
+      console.log(`DEBUG: Stored subscription type: ${subscriptionType}`);
       
       // Show success alert and then navigate to login screen
       Alert.alert("Success", "Your subscription is now active!", [
