@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import React, { useMemo } from "react";
 import Feather from "@expo/vector-icons/Feather";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { View, StyleSheet, Image, Platform, Text } from "react-native";
+import { View, StyleSheet, Image, Platform, Text, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-// utils
-import { STORAGE } from "@/utils/storage";
+// utils (removed unused imports to reduce API calls)
 
 // constants
 import {
@@ -19,124 +18,90 @@ import { Colors } from "@/constants/Colors";
 import { categoriesStore } from "@/context/store";
 
 export default function Header({
+  categoryDone,
   onPressInfo,
   onPressSettings,
 }: {
+  categoryDone: any[];
   onPressInfo: () => void;
   onPressSettings: () => void;
 }) {
-  const [categoryDonePercentage, setCategoryDonePercentage] =
-    useState<number>(0);
-
-  const updateCategoryDone = async () => {
-    // Track completion across all content types (hack, hack2, tip, tip2)
-    const contentTypes = ['hack', 'hack2', 'tip', 'tip2'];
-    let totalCompleted = 0;
-    let totalCategories = 0;
+  // Calculate progress percentage from categoryDone array (20 subcategories total)
+  const categoryDonePercentage = useMemo(() => {
+    if (!categoryDone || categoryDone.length === 0) return 0;
     
-    // Get all category completion statuses from storage
-    for (const contentType of contentTypes) {
-      try {
-        // Get categories for this content type from storage
-        const categoriesForType = await STORAGE.getAllCategoriesForContentType(contentType);
-        if (!categoriesForType || !Array.isArray(categoriesForType)) continue;
-        
-        // Count total categories for accurate percentage calculation
-        totalCategories += categoriesForType.length;
-        
-        // Check completion status for each category
-        for (const category of categoriesForType) {
-          // Each category counts as 1 subcategory (5% of progress)
-          const isDone = await STORAGE.getCategoryDone(category, 0);
-          if (isDone === "true") {
-            totalCompleted++;
-            console.log(`DEBUG: Category ${category} in ${contentType} is completed`);
-          }
-        }
-      } catch (error) {
-        console.error(`Error checking completion for ${contentType}:`, error);
-      }
-    }
-
-    // Calculate percentage based on actual number of categories
-    // Each category should contribute 5% to the total progress (assuming 20 total categories)
-    const percentage = totalCategories > 0 ? (totalCompleted / totalCategories) * 100 : 0;
-    console.log(`DEBUG: Progress - ${totalCompleted} completed out of ${totalCategories} total categories (${percentage.toFixed(2)}%)`);
-
-    setCategoryDonePercentage(percentage);
-  };
-
-
-
-  useEffect(() => {
-    updateCategoryDone();
-
-    const intervalId = setInterval(() => {
-      updateCategoryDone();
-    }, 5000);
-
-    return () => clearInterval(intervalId);
-  }, []);
+    const completedCount = categoryDone.filter(value => value === "true").length;
+    const totalCount = 20; // Total of 20 subcategories across all content types
+    const percentage = (completedCount / totalCount) * 100;
+    
+    console.log(`DEBUG: Header Progress - ${completedCount} completed out of ${totalCount} total subcategories (${percentage.toFixed(2)}%)`);
+    
+    return percentage;
+  }, [categoryDone]);
 
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
-        <SafeAreaView style={styles.logoContainer}>
-          <View style={styles.logoWrapper}>
-            {/* White logo as background */}
-            <Image
-              resizeMode="contain"
-              source={require("@/assets/images/logo.png")}
-              style={[styles.logo, {tintColor: Colors.white}]}
-            />
-            
-            {/* Green logo with clipping based on progress */}
-            <View style={[styles.progressLogoContainer, {width: `${categoryDonePercentage}%`}]}>
-              <Image
-                resizeMode="contain"
-                source={require("@/assets/images/logo.png")}
-                style={[styles.logo, {tintColor: Colors.green}]}
-              />
-            </View>
-          </View>
-        </SafeAreaView>
+                 <SafeAreaView style={styles.logoContainer}>
+           {categoryDonePercentage === 100 ? (
+             <View style={styles.completedLogoContainer}>
+               <Image
+                 resizeMode="contain"
+                 source={require("@/assets/images/logo.png")}
+                 style={[styles.logo, {tintColor: Colors.green}]}
+               />
+               <Image
+                 resizeMode="contain"
+                 source={require("@/assets/images/medal.png")}
+                 style={styles.medal}
+               />
+             </View>
+           ) : (
+             <View style={styles.logoWrapper}>
+               {/* Gray logo as background */}
+               <Image
+                 resizeMode="contain"
+                 source={require("@/assets/images/logo.png")}
+                 style={[styles.logo, {tintColor: Colors.white}]}
+               />
+               
+               {/* Green logo with clipping based on progress */}
+               <View style={[styles.progressLogoContainer, {width: `${categoryDonePercentage}%`}]}>
+                 <Image
+                   resizeMode="contain"
+                   source={require("@/assets/images/logo.png")}
+                   style={[styles.logo, {tintColor: Colors.green}]}
+                 />
+               </View>
+             </View>
+           )}
+         </SafeAreaView>
 
-        <SafeAreaView style={styles.settingsContainer}>
-          <View style={styles.iconCircle}>
-            <Feather
-              onPress={onPressInfo}
-              name="info"
-              size={moderateScale(20)}
-              color={Colors.white}
-            />
-          </View>
+                 <SafeAreaView style={styles.settingsContainer}>
+           <TouchableOpacity style={styles.iconCircle} onPress={onPressInfo}>
+             <Feather
+               name="info"
+               size={moderateScale(18)}
+               color={Colors.white}
+             />
+           </TouchableOpacity>
 
-          <View style={styles.iconCircle}>
-            <Feather
-              onPress={onPressSettings}
-              name="settings"
-              size={moderateScale(20)}
-              color={Colors.white}
-            />
-          </View>
-        </SafeAreaView>
+           <TouchableOpacity style={styles.iconCircle} onPress={onPressSettings}>
+             <Feather
+               name="settings"
+               size={moderateScale(18)}
+               color={Colors.white}
+             />
+           </TouchableOpacity>
+         </SafeAreaView>
       </View>
 
-      {/* Single progress bar with proper styling */}
-      <View style={styles.progressBarContainer}>
-        <View
-          style={[
-            styles.progressBar,
-            {
-              width: `${categoryDonePercentage}%`,
-              borderTopRightRadius:
-                categoryDonePercentage === 100 ? moderateScale(2.5) : 0,
-              borderBottomRightRadius:
-                categoryDonePercentage === 100 ? moderateScale(2.5) : 0,
-            },
-          ]}
-        />
-      </View>
+             {/* Rounded pill progress bar */}
+       <View style={styles.progressBarContainer}>
+         <View style={styles.progressBarBackground}>
+           <View style={[styles.progressBarFill, { width: `${categoryDonePercentage}%` }]} />
+         </View>
+       </View>
     </View>
   );
 }
@@ -154,7 +119,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     flexDirection: "row",
-    height: verticalScale(120),
+    height: verticalScale(105),
     backgroundColor: Colors.black,
     justifyContent: "space-between",
     paddingHorizontal: horizontalScale(24),
@@ -204,32 +169,37 @@ const styles = StyleSheet.create({
     marginTop: Platform.OS === "ios" ? verticalScale(28) : 0,
   },
   
-  iconCircle: {
-    width: horizontalScale(32),
-    height: horizontalScale(32),
-    borderRadius: horizontalScale(16),
-    backgroundColor: Colors.black,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
+     iconCircle: {
+     width: horizontalScale(32),
+     height: horizontalScale(32),
+     borderRadius: horizontalScale(16),
+     backgroundColor: Colors.black,
+     justifyContent: "center",
+     alignItems: "center",
+     shadowColor: '#000',
+     shadowOffset: { width: 0, height: 1 },
+     shadowOpacity: 0.2,
+     shadowRadius: 2,
+     elevation: 2,
+   },
 
-  progressBarContainer: {
-    width: "88%",
-    alignSelf: "center",
-    height: verticalScale(15),
-    backgroundColor: "#333333",
-    borderRadius: moderateScale(10),
-  },
+   progressBarContainer: {
+     width: "88%",
+     alignSelf: "center",
+     paddingVertical: verticalScale(8),
+   },
 
-  progressBar: {
-    height: "200%",
-    backgroundColor: Colors.green,
-    borderTopLeftRadius: moderateScale(2.5),
-    borderBottomLeftRadius: moderateScale(2.5),
-  },
+   progressBarBackground: {
+     width: "100%",
+     height: verticalScale(20),
+     backgroundColor: Colors.white,
+     borderRadius: moderateScale(10),
+     overflow: 'hidden',
+   },
+
+   progressBarFill: {
+     height: "100%",
+     backgroundColor: Colors.green,
+     borderRadius: moderateScale(10),
+   },
 });

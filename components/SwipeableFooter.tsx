@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   
   activeTabButtonText: {
     opacity: 1,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   
   bottomIndicator: {

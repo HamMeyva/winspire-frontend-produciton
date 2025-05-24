@@ -740,6 +740,7 @@ function Main() {
     return (
       <GestureHandlerRootView style={styles.container}>
         <Header
+          categoryDone={categoryDone}
           onPressInfo={() => {
             if (settingsBottomSheetVisible === false) {
               setInfoBottomSheetVisible(true);
