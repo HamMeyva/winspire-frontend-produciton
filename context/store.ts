@@ -106,16 +106,20 @@ export const contentTypeStore = new CONTENT_TYPE_STORE();
 class USER_STORE {
   isSubscribed: boolean = false;
   userId: string | null = null;
-  devModeOverride: boolean = false; // New flag for developer mode override
+  // devModeOverride: boolean = false; // Commented out for production
+  subscriptionType: string | null = null; // Added for specific type (free_trial, weekly, annual)
+  isLoggedIn: boolean = false; // Added to track login state
   // You can add other user-specific properties here, e.g., email, etc.
 
   constructor() {
     makeAutoObservable(this, {}, { autoBind: true });
-    // Check for dev mode override on initialization
-    this.checkDevModeOverride();
+    // this.checkDevModeOverride(); // Commented out for production
+    this.loadInitialLoginState(); // Check login state on init
+    this.loadInitialSubscriptionType(); // Load subscription type on init
   }
 
-  // MobX action to set dev mode override
+  // MobX action to set dev mode override - Commented out for production
+  /*
   setDevModeOverride(value: boolean) {
     this.devModeOverride = value;
     if (value) {
@@ -123,29 +127,70 @@ class USER_STORE {
       console.log("DEBUG: Developer mode override set to", value);
     }
   }
+  */
 
-  // Check for developer mode override in AsyncStorage
+  // Check for developer mode override in AsyncStorage - Commented out for production
+  /*
   async checkDevModeOverride() {
     try {
       const value = await AsyncStorage.getItem('DEV_SKIP_TO_LOGIN');
       if (value === 'true') {
-        this.setDevModeOverride(true);
+        // this.setDevModeOverride(true); // Would call the disabled method
         console.log("DEBUG: Developer mode override enabled - subscription forced to true");
       }
     } catch (error) {
       console.error("Error checking dev mode override:", error);
     }
   }
+  */
+
+  // Load initial login state from AsyncStorage
+  async loadInitialLoginState() {
+    try {
+      const loggedInStatus = await AsyncStorage.getItem('isLoggedIn'); // Assuming 'isLoggedIn' is the key you use
+      this.isLoggedIn = loggedInStatus === 'true';
+      console.log("DEBUG: Initial isLoggedIn state loaded:", this.isLoggedIn);
+    } catch (error) {
+      console.error("Error loading initial login state:", error);
+      this.isLoggedIn = false; // Default to false on error
+    }
+  }
+  
+  // Load initial subscription type from AsyncStorage
+  async loadInitialSubscriptionType() {
+    try {
+      const type = await STORAGE.getSubscriptionType();
+      this.subscriptionType = type;
+      console.log("DEBUG: Initial subscriptionType loaded:", this.subscriptionType);
+    } catch (error) {
+      console.error("Error loading initial subscription type:", error);
+    }
+  }
 
   setIsSubscribed(status: boolean) {
-    // If dev mode override is enabled, always keep subscription as true
-    if (this.devModeOverride) {
-      this.isSubscribed = true;
-      console.log("DEBUG: Subscription status override - forced to true by dev mode");
-    } else {
-      this.isSubscribed = status;
-      console.log("DEBUG: User subscribed status updated in store:", status);
-    }
+    // Dev mode logic commented out for production
+    // if (this.devModeOverride) {
+    //   this.isSubscribed = true;
+    //   console.log("DEBUG: Subscription status override - forced to true by dev mode");
+    // } else {
+    this.isSubscribed = status;
+    console.log("DEBUG: User subscribed status updated in store:", status);
+    // }
+  }
+
+  setSubscriptionType(type: string | null) {
+    this.subscriptionType = type;
+    console.log("DEBUG: User subscription type updated in store:", type);
+    // Optionally, persist this to AsyncStorage if it's not already handled elsewhere
+    if (type) STORAGE.setSubscriptionType(type);
+    else AsyncStorage.removeItem('subscription_type'); // Or however you clear it
+  }
+
+  setIsLoggedIn(status: boolean) {
+    this.isLoggedIn = status;
+    console.log("DEBUG: User isLoggedIn status updated in store:", status);
+    // Persist this to AsyncStorage so it can be loaded on app start
+    AsyncStorage.setItem('isLoggedIn', status.toString());
   }
 
   setUserData(userData: { id: string; [key: string]: any }) {
@@ -157,7 +202,10 @@ class USER_STORE {
   clearUserData() {
     this.userId = null;
     this.isSubscribed = false;
-    // Clear other user-specific data if any
+    this.subscriptionType = null; // Clear subscription type
+    this.isLoggedIn = false; // Set loggedIn to false
+    AsyncStorage.removeItem('isLoggedIn'); // Clear from storage
+    AsyncStorage.removeItem('subscription_type'); // Clear from storage
     console.log("DEBUG: User data cleared from store.");
   }
 

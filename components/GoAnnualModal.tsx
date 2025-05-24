@@ -37,6 +37,7 @@ export default function GoAnnualModal({
   purchaseWeekly,
   regularAnnualPrice,
   weeklyPrice,
+  showTimer,
 }: {
   goAnnualModalVisible: boolean;
   close: (purchased?: boolean) => void;
@@ -44,6 +45,7 @@ export default function GoAnnualModal({
   purchaseWeekly: () => Promise<void>;
   regularAnnualPrice: string;
   weeklyPrice: string;
+  showTimer: boolean;
 }) {
   const [selectedPlan, setSelectedPlan] = useState<"WEEKLY" | "ANNUAL">("ANNUAL");
   const [remainingTime, setRemainingTime] = useState(59);
@@ -73,7 +75,7 @@ export default function GoAnnualModal({
 
   // Set up a timer for the countdown
   useEffect(() => {
-    if (goAnnualModalVisible) {
+    if (goAnnualModalVisible && showTimer) {
       setRemainingTime(59);
       
       // Update the timer every second
@@ -86,7 +88,7 @@ export default function GoAnnualModal({
       
       return () => clearInterval(interval);
     }
-  }, [goAnnualModalVisible]);
+  }, [goAnnualModalVisible, showTimer]);
 
   return (
     <Modal animationType="slide" visible={goAnnualModalVisible}>
@@ -104,21 +106,34 @@ export default function GoAnnualModal({
       />
 
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.limitedTimeText}>LIMITED TIME</Text>
-          <Text style={styles.offerText}>OFFER!</Text>
-          
-          <View style={styles.timerContainer}>
-            <Text style={styles.onlyText}>ONLY</Text>
-            <View style={styles.countdownContainer}>
-              <Text style={styles.countdownText}>{String(Math.floor(remainingTime / 60)).padStart(2, '0')}:{String(remainingTime % 60).padStart(2, '0')}</Text>
+        {showTimer && (
+          <View style={styles.headerContainer}>
+            <Text style={styles.limitedTimeText}>LIMITED TIME</Text>
+            <Text style={styles.offerText}>OFFER!</Text>
+            
+            <View style={styles.timerContainer}>
+              <Text style={styles.onlyText}>ONLY</Text>
+              <View style={styles.countdownContainer}>
+                <Text style={styles.countdownText}>{String(Math.floor(remainingTime / 60)).padStart(2, '0')}:{String(remainingTime % 60).padStart(2, '0')}</Text>
+              </View>
+              <Text style={styles.leftText}>LEFT</Text>
             </View>
-            <Text style={styles.leftText}>LEFT</Text>
+            
+            <Text style={styles.upgradeText}>Upgrade Now &</Text>
+            <Text style={styles.saveText}>Save 55%!</Text>
           </View>
-          
-          <Text style={styles.upgradeText}>Upgrade Now &</Text>
-          <Text style={styles.saveText}>Save 55%!</Text>
-        </View>
+        )}
+
+        {!showTimer && (
+          <View style={styles.headerContainerNoTimer}>
+             <Image
+              style={styles.logo}
+              source={require("@/assets/images/logo.png")}
+            />
+            <Text style={styles.mainTitle}>Winspire Premium</Text>
+            <Text style={styles.subTitle}>"One app, all life hacks to win"</Text>
+          </View>
+        )}
 
         <View style={styles.promotionTextsContainer}>
           <View style={styles.promotionTextContainer}>
@@ -371,14 +386,26 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    height: verticalScale(60),
     width: horizontalScale(200),
+    height: verticalScale(60),
+    resizeMode: "contain",
+    marginBottom: verticalScale(10),
   },
 
-  logoAlt: {
-    color: Colors.white,
+  mainTitle: {
+    fontSize: moderateScale(28),
     fontFamily: "SFProBold",
-    fontSize: moderateScale(20),
+    color: Colors.white,
+    textAlign: "center",
+    marginBottom: verticalScale(5),
+  },
+
+  subTitle: {
+    fontSize: moderateScale(16),
+    fontFamily: "SFProRegular",
+    color: Colors.lightGray,
+    textAlign: "center",
+    marginBottom: verticalScale(20),
   },
 
   promotionTextsContainer: {
@@ -522,5 +549,11 @@ const styles = StyleSheet.create({
     fontFamily: "SFProBold",
     color: Colors.black,
     fontSize: moderateScale(20),
+  },
+
+  headerContainerNoTimer: {
+    alignItems: "center",
+    marginBottom: verticalScale(20),
+    marginTop: verticalScale(Platform.OS === 'ios' ? 50 : 30),
   },
 });

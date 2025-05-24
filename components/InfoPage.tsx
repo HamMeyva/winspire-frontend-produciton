@@ -46,10 +46,9 @@ export default function InfoPage({
 }) {
   const [goAnnualModalVisible, setGoAnnualModalVisible] = useState(false);
   const [infoBottomSheetPage, setInfoBottomSheetPage] = useState<number>(0);
-  const [subscriptionType, setSubscriptionType] = useState<string>("weekly");
   
-  // Access subscription status from userStore
-  const { isSubscribed } = userStore;
+  // Access subscription status and type from userStore
+  const { isSubscribed, subscriptionType } = userStore;
 
   const handleCloseGoAnnualModal = (purchased?: boolean) => {
     setGoAnnualModalVisible(false);
@@ -299,6 +298,7 @@ export default function InfoPage({
             purchaseWeekly={purchaseWeekly}
             regularAnnualPrice={regularAnnualPrice}
             weeklyPrice={weeklyPrice}
+            showTimer={false}
           />
         )}
       </BottomSheetView>

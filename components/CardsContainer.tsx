@@ -60,6 +60,11 @@ export default function CardsContainer({
   // Load saved swipe action and track card view
   useEffect(() => {
     const loadSavedActionAndTrackView = async () => {
+      // Reset card position and opacity when component mounts
+      translateX.setValue(0);
+      translateY.setValue(0);
+      cardOpacity.setValue(1);
+      
       // Load saved swipe action if exists
       const savedAction = await STORAGE.getCardAction(category, title, cardIndex);
       if (savedAction) {
@@ -210,33 +215,53 @@ export default function CardsContainer({
       }
       
       if (action) {
-        // Complete the swipe animation with ultra-fast duration
+        // Show the swipe overlay immediately
+        setSwipeStatus(action);
+        
+        // Complete a shorter animation to show the action
         Animated.parallel([
           Animated.timing(translateX, {
-            toValue: targetX,
-            duration: 100, // Ultra fast animation
+            toValue: targetX * 0.3, // Move only 30% of the target distance
+            duration: 150,
             useNativeDriver: true,
-            easing: Easing.out(Easing.quad) // Faster easing function
+            easing: Easing.out(Easing.quad)
           }),
           Animated.timing(translateY, {
-            toValue: targetY,
-            duration: 100, // Ultra fast animation
+            toValue: targetY * 0.3, // Move only 30% of the target distance
+            duration: 150,
             useNativeDriver: true,
-            easing: Easing.out(Easing.quad) // Faster easing function
-          }),
-          Animated.timing(cardOpacity, {
-            toValue: 0,
-            duration: 80, // Extremely fast fade
-            useNativeDriver: true,
+            easing: Easing.out(Easing.quad)
           })
         ]).start(() => {
-          // Immediately trigger the next action for responsiveness
+          // Save the action
           saveSwipeAction(action!);
-          if (onSwipeComplete) setTimeout(onSwipeComplete, 0); // Use setTimeout with 0ms to improve perceived performance
+          
+          // Reset card position after a short delay so it's visible when returning
+          setTimeout(() => {
+            Animated.parallel([
+              Animated.timing(translateX, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+              }),
+              Animated.timing(translateY, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+              }),
+              Animated.timing(cardOpacity, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+              })
+            ]).start();
+          }, 500); // Wait 500ms before resetting
+          
+          // Trigger next card/page
+          if (onSwipeComplete) {
+            setTimeout(onSwipeComplete, 200);
+          }
         });
-        
-        // Update UI to show the swipe status overlay during animation
-        setSwipeStatus(action);
       } else {
         // Not a significant swipe, return card to center with ultra-fast spring
         Animated.parallel([
@@ -360,17 +385,19 @@ const styles = StyleSheet.create({
     width: width,
     alignItems: "center",
     justifyContent: "center",
-    height: verticalScale(532),
-    backgroundColor: Colors.cardBackground,
+    height: verticalScale(480),
+    backgroundColor: 'transparent',
   },
 
   container: {
-    width: "90%",
+    width: "80%",
     alignItems: "center",
-    height: verticalScale(500),
-    maxHeight: verticalScale(500),
+    height: verticalScale(450),
+    maxHeight: verticalScale(450),
     backgroundColor: Colors.white,
     borderRadius: moderateScale(16),
+    borderWidth: 4,
+    borderColor: '#2C2C2E',
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -381,7 +408,7 @@ const styles = StyleSheet.create({
 
   scrollContainer: {
     justifyContent: "center",
-    minHeight: verticalScale(460),
+    minHeight: verticalScale(410),
     width: "100%",
   },
   
@@ -391,7 +418,7 @@ const styles = StyleSheet.create({
     fontFamily: "SFProMedium",
     fontSize: moderateScale(20),
     paddingVertical: verticalScale(20),
-    paddingHorizontal: horizontalScale(24),
+    paddingHorizontal: horizontalScale(20),
     lineHeight: moderateScale(28),
   },
 

@@ -290,15 +290,7 @@ function Main() {
 
   // Function to update subscription status based on RevenueCat CustomerInfo
   const updateSubscriptionStatus = (customerInfo: CustomerInfo) => { 
-    // Check for developer mode override first
-    if (userStore.devModeOverride) {
-      // If developer mode is active, keep subscription status as true
-      setSubscribed(true);
-      console.log(`DEBUG: updateSubscriptionStatus - Developer mode active, keeping subscription status as true`);
-      return;
-    }
-    
-    // Normal flow for non-developer mode
+    // Normal flow for production - removed dev mode override logic
     const isActive = typeof customerInfo.entitlements.active[PREMIUM_ENTITLEMENT_ID] !== "undefined";
     userStore.setIsSubscribed(isActive); 
     setSubscribed(isActive); 
@@ -309,19 +301,12 @@ function Main() {
 
 
   const getCustomerInfo = async () => {
-    // Check for developer mode override first
-    if (userStore.devModeOverride) {
-      console.log("DEV: Developer mode active - bypassing subscription checks");
-      setSubscribed(true);
-      setIsLoading(false);
-      return;
-    }
-    
+    // Removed dev mode override logic for production
     if (!isRevenueCatConfigured) {
       console.log("DEBUG: RevenueCat not configured yet, skipping getCustomerInfo.");
       return;
     }
-    setIsLoading(true); 
+    setIsLoading(true);
     try {
       console.log("DEBUG: Fetching CustomerInfo from RevenueCat...");
       const customerInfo = await Purchases.getCustomerInfo();
@@ -429,49 +414,51 @@ function Main() {
     handleActiveContentTypeChange();
   }, [contentTypeStore.activeContentType]);
 
-  const makePurchase = async (packageToPurchase: PurchasesPackage | null | undefined) => {
+  const makePurchase = async (packageToPurchase: PurchasesPackage | null | undefined, fromScreen?: string) => {
     if (!packageToPurchase) {
-      Alert.alert("Error", "Selected subscription package is not available. Please try again later.");
-      console.error("ERROR: Attempted to purchase a null/undefined package.");
-      return;
-    }
-    if (!isRevenueCatConfigured) {
-      Alert.alert("Error", "Purchases system is not ready. Please try again in a moment.");
+      Alert.alert('Error', 'No package selected for purchase.');
       return;
     }
     setIsLoading(true);
     try {
-      console.log(`DEBUG: Attempting to purchase package: ${packageToPurchase.identifier}`);
       const { customerInfo } = await Purchases.purchasePackage(packageToPurchase);
-      console.log("DEBUG: Purchase successful for package:", packageToPurchase.identifier, "CustomerInfo:", customerInfo.entitlements.active);
-      updateSubscriptionStatus(customerInfo); // Update UI immediately
+      console.log('DEBUG: Purchase successful', customerInfo.entitlements.active);
+      updateSubscriptionStatus(customerInfo); // This will set userStore.isSubscribed
+
+      // Determine subscription type from the purchased package
+      let purchasedSubscriptionType = 'unknown';
+      if (packageToPurchase.packageType === 'ANNUAL' || packageToPurchase.identifier.toLowerCase().includes('annual')) {
+        purchasedSubscriptionType = 'annual';
+      } else if (packageToPurchase.packageType === 'MONTHLY' || packageToPurchase.identifier.toLowerCase().includes('weekly')) { // Assuming weekly is handled as a custom monthly type or by identifier
+        purchasedSubscriptionType = 'weekly';
+      } else if (packageToPurchase.packageType === 'LIFETIME') {
+        purchasedSubscriptionType = 'lifetime';
+      } // Add more conditions if you have other package types like 'free_trial' as a package
       
-      // Store subscription type based on package type
-      let subscriptionType = 'weekly'; // default
-      if (packageToPurchase.packageType === Purchases.PACKAGE_TYPE.ANNUAL) {
-        subscriptionType = 'annual';
-      } else if (packageToPurchase.packageType === Purchases.PACKAGE_TYPE.WEEKLY) {
-        subscriptionType = 'weekly';
+      await STORAGE.setSubscriptionType(purchasedSubscriptionType);
+      userStore.setSubscriptionType(purchasedSubscriptionType); // Also update in MobX store
+
+      // Handle navigation after successful purchase
+      if (fromScreen === 'freeTrial' || currentScreen === 'freeTrial') {
+        // After free trial purchase, navigate to login
+        console.log("DEBUG: Purchase from free trial successful, navigating to login");
+        router.replace('/login');
+      } else {
+        // For limited time offer and other purchases, close modals and stay in main content
+        console.log("DEBUG: Purchase from", fromScreen || "other screen", "successful, staying in main content");
+        setLimitedTimeOfferModalVisible(false);
+        setInfoBottomSheetVisible(false);
+        setSettingsBottomSheetVisible(false);
+        // Refresh content to update subscription status
+        await onRefresh();
       }
-      await STORAGE.setSubscriptionType(subscriptionType);
-      console.log(`DEBUG: Stored subscription type: ${subscriptionType}`);
-      
-      // Show success alert and then navigate to login screen
-      Alert.alert("Success", "Your subscription is now active!", [
-        {
-          text: "Continue",
-          onPress: () => {
-            setPaywallDismissedInitially(true);
-            router.replace('/login');
-          }
-        }
-      ]);
+
     } catch (e: any) {
       if (!e.userCancelled) {
-        console.error(`ERROR: Purchase failed for package ${packageToPurchase.identifier}:`, e);
-        Alert.alert("Purchase Error", e.message || "An error occurred during the purchase. Please try again.");
+        console.error('DEBUG: Purchase error', e);
+        Alert.alert('Purchase Error', e.message);
       } else {
-        console.log("DEBUG: User cancelled the purchase flow.");
+        console.log('DEBUG: Purchase cancelled by user');
       }
     } finally {
       setIsLoading(false);
@@ -517,7 +504,7 @@ function Main() {
     }
 
     if (trialPackage) {
-      await makePurchase(trialPackage);
+      await makePurchase(trialPackage, 'freeTrial');
     } else {
       Alert.alert("No Trial Available", "Currently, no free trial option is available or you might not be eligible.");
       console.warn("WARN: Could not find a suitable package for free trial.");
@@ -527,13 +514,13 @@ function Main() {
   const purchaseWeekly = async () => {
     const weeklyPackage = offeringsStore.offerings?.current?.weekly || 
                           offeringsStore.offerings?.current?.availablePackages.find((p: PurchasesPackage) => p.packageType === Purchases.PACKAGE_TYPE.WEEKLY);
-    await makePurchase(weeklyPackage);
+    await makePurchase(weeklyPackage, 'main');
   };
 
   const purchaseAnnual = async () => {
     const annualPackage = offeringsStore.offerings?.current?.annual || 
                           offeringsStore.offerings?.current?.availablePackages.find((p: PurchasesPackage) => p.packageType === Purchases.PACKAGE_TYPE.ANNUAL);
-    await makePurchase(annualPackage);
+    await makePurchase(annualPackage, 'main');
   };
 
   const purchaseSaleAnnual = async () => {
@@ -543,12 +530,19 @@ function Main() {
     
     if (!saleAnnualPackage) {
       console.error('Sale annual package not found, falling back to regular annual package');
-      await purchaseAnnual();
+      await makePurchase(offeringsStore.offerings?.current?.annual, 'limitedTimeOffer');
       return;
     }
     
     console.log('DEBUG: Purchasing sale annual package:', saleAnnualPackage.identifier);
-    await makePurchase(saleAnnualPackage);
+    await makePurchase(saleAnnualPackage, 'limitedTimeOffer');
+  };
+
+  // New function for weekly purchase from limited time offer
+  const purchaseWeeklyFromOffer = async () => {
+    const weeklyPackage = offeringsStore.offerings?.current?.weekly || 
+                          offeringsStore.offerings?.current?.availablePackages.find((p: PurchasesPackage) => p.packageType === Purchases.PACKAGE_TYPE.WEEKLY);
+    await makePurchase(weeklyPackage, 'limitedTimeOffer');
   };
 
   const restorePurchases = async () => {
@@ -563,6 +557,20 @@ function Main() {
       updateSubscriptionStatus(restoreInfo);
       if (restoreInfo.entitlements.active[PREMIUM_ENTITLEMENT_ID]) {
         Alert.alert("Success", "Your previous purchases have been restored.");
+        
+        // Handle navigation after successful restore - only from free trial page
+        if (currentScreen === 'freeTrial') {
+          // After restore from free trial screen, navigate to login
+          console.log("DEBUG: Restore from free trial successful, navigating to login");
+          router.replace('/login');
+        } else {
+          // For other screens, close modals and stay in main content
+          console.log("DEBUG: Restore from other screen successful, staying in main content");
+          setLimitedTimeOfferModalVisible(false);
+          setInfoBottomSheetVisible(false);
+          setSettingsBottomSheetVisible(false);
+          await onRefresh();
+        }
       } else {
         Alert.alert("No Purchases Found", "We couldn't find any previous purchases to restore.");
       }
@@ -587,6 +595,52 @@ function Main() {
     }
   };
 
+  // Helper functions to calculate proper prices
+  const calculateWeeklyPrice = (annualPrice: string): string => {
+    try {
+      // Remove currency symbol and parse
+      const price = parseFloat(annualPrice.replace(/[^0-9.]/g, ''));
+      const weeklyPrice = price / 52;
+      return `$${weeklyPrice.toFixed(2)}`;
+    } catch (error) {
+      console.error('Error calculating weekly price:', error);
+      return annualPrice;
+    }
+  };
+
+  const calculateYearlyPrice = (weeklyPrice: string): string => {
+    try {
+      // Remove currency symbol and parse
+      const price = parseFloat(weeklyPrice.replace(/[^0-9.]/g, ''));
+      const yearlyPrice = price * 52;
+      return `$${yearlyPrice.toFixed(2)}`;
+    } catch (error) {
+      console.error('Error calculating yearly price:', error);
+      return weeklyPrice;
+    }
+  };
+
+  const getProperPrices = () => {
+    const weeklyProduct = offeringsStore.offerings?.current?.weekly?.product;
+    const annualProduct = offeringsStore.offerings?.current?.annual?.product;
+    const saleAnnualProduct = offeringsStore.offerings?.all?.sale?.annual?.product;
+
+    return {
+      weekly: {
+        perWeek: weeklyProduct?.priceString || "$6.99",
+        perYear: calculateYearlyPrice(weeklyProduct?.priceString || "$6.99")
+      },
+      annual: {
+        perWeek: calculateWeeklyPrice(annualProduct?.priceString || "$149.99"),
+        perYear: annualProduct?.priceString || "$149.99"
+      },
+      saleAnnual: {
+        perWeek: calculateWeeklyPrice(saleAnnualProduct?.priceString || "$99.99"),
+        perYear: saleAnnualProduct?.priceString || "$99.99"
+      }
+    };
+  };
+
   // Show loading indicator during purchase or info fetch
   if (isLoading) { 
     return (
@@ -596,87 +650,18 @@ function Main() {
     );
   }
 
-  // Dev function to skip to login
-  const skipToLogin = async () => {
-    console.log('DEV: Activating developer mode to skip to login');
-    
-    // For development only - skip to login even if not subscribed
-    setPaywallDismissedInitially(true);
-    setSubscribed(true); // Pretend the user is subscribed to bypass subscription checks
-    
-    // Persist the subscription status in AsyncStorage
-    try {
-      // Set the dev mode flag in AsyncStorage
-      await AsyncStorage.setItem('DEV_SKIP_TO_LOGIN', 'true');
-      console.log('DEV: Saved subscription bypass flag to AsyncStorage');
-      
-      // Use the proper MobX action to update the userStore
-      userStore.setDevModeOverride(true);
-      console.log('DEV: Enabled developer mode in userStore');
-      
-      // Navigate to login with a small delay to ensure state updates are processed
-      setTimeout(() => {
-        router.replace('/login');
-      }, 300); // Increased delay to ensure state propagation
-    } catch (error) {
-      console.error('Error in skipToLogin:', error);
-      // Try to navigate anyway
-      router.replace('/login');
-    }
-  };
-
   // Implement the correct flow: Free trial screen → Purchase screen → Login (if bought/started trial)
   if (!subscribed) {
+    const prices = getProperPrices();
+    
     if (currentScreen === 'freeTrial') {
       // Step 1: Free trial screen
       return (
         <GestureHandlerRootView>
           <View style={{flex: 1}}>
-            {/* Development Skip Buttons */}
-            <View style={{
-              position: 'absolute', 
-              top: 50, 
-              right: 20, 
-              zIndex: 999,
-              flexDirection: 'row',
-              gap: 10
-            }}>
-              {/* X button to skip to login (dev feature) */}
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  justifyContent: 'center',
-                  alignItems: 'center'
-                }} 
-                onPress={skipToLogin}
-              >
-                <Text style={{color: 'white', fontSize: 20, fontWeight: 'bold'}}>X</Text>
-              </TouchableOpacity>
-              
-              {/* Skip button with text */}
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                  paddingHorizontal: 15,
-                  height: 40,
-                  borderRadius: 20,
-                  justifyContent: 'center',
-                  alignItems: 'center'
-                }} 
-                onPress={skipToLogin}
-              >
-                <Text style={{color: 'white', fontSize: 12, fontWeight: 'bold'}}>SKIP</Text>
-              </TouchableOpacity>
-            </View>
-            
             <SubscriptionPageWithFreeTrial
               purchase={purchaseFreeTrial}
-              pricePerWeek={
-                offeringsStore.offerings?.current?.weekly?.product.priceString || "$6.99"
-              }
+              pricePerWeek={prices.weekly.perWeek}
               restorePurchases={restorePurchases}
             />
           </View>
@@ -687,59 +672,11 @@ function Main() {
       return (
         <GestureHandlerRootView>
           <View style={{flex: 1}}>
-            {/* Development Skip Buttons */}
-            <View style={{
-              position: 'absolute', 
-              top: 50, 
-              right: 20, 
-              zIndex: 999,
-              flexDirection: 'row',
-              gap: 10
-            }}>
-              {/* X button to skip to login (dev feature) */}
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  justifyContent: 'center',
-                  alignItems: 'center'
-                }} 
-                onPress={skipToLogin}
-              >
-                <Text style={{color: 'white', fontSize: 20, fontWeight: 'bold'}}>X</Text>
-              </TouchableOpacity>
-              
-              {/* Skip button with text */}
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                  paddingHorizontal: 15,
-                  height: 40,
-                  borderRadius: 20,
-                  justifyContent: 'center',
-                  alignItems: 'center'
-                }} 
-                onPress={skipToLogin}
-              >
-                <Text style={{color: 'white', fontSize: 12, fontWeight: 'bold'}}>SKIP</Text>
-              </TouchableOpacity>
-            </View>
-            
             <SubscriptionPageWithoutFreeTrial
-              weeklyPricePerWeek={
-                offeringsStore.offerings?.current?.weekly?.product.priceString || "$6.99"
-              }
-              weeklyPricePerYear={ 
-                offeringsStore.offerings?.current?.weekly?.product.priceString || "$359.88" 
-              }
-              annualPricePerWeek={
-                offeringsStore.offerings?.current?.annual?.product.priceString || "$2.99" 
-              }
-              annualPricePerYear={
-                offeringsStore.offerings?.current?.annual?.product.priceString || "$149.99" 
-              }
+              weeklyPricePerWeek={prices.weekly.perWeek}
+              weeklyPricePerYear={prices.weekly.perYear}
+              annualPricePerWeek={prices.annual.perWeek}
+              annualPricePerYear={prices.annual.perYear}
               purchaseWeekly={purchaseWeekly} 
               purchaseAnnual={purchaseAnnual}
               restorePurchases={restorePurchases}
@@ -754,6 +691,8 @@ function Main() {
   const showMainContent = subscribed;
 
   if (showMainContent) {
+    const prices = getProperPrices();
+    
     if (cardsPageVisible && selectedCategoryData) {
       return (
         <GestureHandlerRootView style={{flex:1}}> 
@@ -839,8 +778,8 @@ function Main() {
             triggerLimitedTimeOffer={showLimitedTimeOffer}
             purchaseRegularAnnual={purchaseAnnual}
             purchaseWeekly={purchaseWeekly}
-            regularAnnualPrice={offeringsStore.offerings?.current?.annual?.product?.priceString || ""}
-            weeklyPrice={offeringsStore.offerings?.current?.weekly?.product?.priceString || ""}
+            regularAnnualPrice={prices.annual.perYear}
+            weeklyPrice={prices.weekly.perWeek}
           />
         )}
 
@@ -850,33 +789,21 @@ function Main() {
             triggerLimitedTimeOffer={showLimitedTimeOffer}
             purchaseRegularAnnual={purchaseAnnual}
             purchaseWeekly={purchaseWeekly}
-            regularAnnualPrice={offeringsStore.offerings?.current?.annual?.product?.priceString || ""}
-            weeklyPrice={offeringsStore.offerings?.current?.weekly?.product?.priceString || ""}
+            regularAnnualPrice={prices.annual.perYear}
+            weeklyPrice={prices.weekly.perWeek}
           />
         )}
 
         {limitedTimeOfferModalVisible && (
           <LimitedTimeOfferModal
-            weeklyPricePerWeek={
-              offeringsStore.offerings?.all?.default?.weekly?.product
-                ?.priceString || ""
-            }
-            weeklyPricePerYear={ 
-              offeringsStore.offerings?.all?.default?.weekly?.product
-                ?.priceString || "" 
-            }
-            annualPricePerWeek={
-              (offeringsStore.offerings?.all?.sale?.annual?.product
-                ?.priceString) || ""
-            }
-            annualPricePerYear={
-              (offeringsStore.offerings?.all?.sale?.annual?.product
-                ?.priceString) || ""
-            }
+            weeklyPricePerWeek={prices.weekly.perWeek}
+            weeklyPricePerYear={prices.weekly.perYear}
+            annualPricePerWeek={prices.saleAnnual.perWeek}
+            annualPricePerYear={prices.saleAnnual.perYear}
             limitedTimeOfferModalVisible={limitedTimeOfferModalVisible}
             close={async () => setLimitedTimeOfferModalVisible(false)}
             purchaseAnnual={purchaseSaleAnnual}
-            purchaseWeekly={purchaseWeekly}
+            purchaseWeekly={purchaseWeeklyFromOffer}
           />
         )}
       </GestureHandlerRootView>

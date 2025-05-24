@@ -444,100 +444,89 @@ export default function SwipeableCardsPage({
   };
 
   const getDots = () => {
-    // If we have content items from the backend, use their length
+    // Calculate total pages
+    let totalPages = 1;
     if (contentItems.length > 0) {
-      // Show filtered page count if filtering is active
-      if (filterMode !== 'all' && filteredCardIndices.length > 0) {
-        return filteredCardIndices.map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.footerDot,
-              {
-                backgroundColor:
-                  pageNumber === index + 1 ? Colors.lightGray : Colors.white,
-              },
-            ]}
-          />
-        ));
+      totalPages = filterMode !== 'all' && filteredCardIndices.length > 0 
+        ? filteredCardIndices.length 
+        : contentItems.length;
+    } else {
+      try {
+        if (!categoriesStore.categories[category] || !categoriesStore.categories[category][title]) {
+          totalPages = 1;
+        } else {
+          const data = categoriesStore.categories[category][title];
+          if (filterMode !== 'all' && filteredCardIndices.length > 0) {
+            totalPages = filteredCardIndices.length;
+          } else if (data.manual && data.texts && data.texts[data.manualCount]) {
+            totalPages = Object.keys(data.texts[data.manualCount]).length;
+          } else if (data.texts && Array.isArray(data.texts)) {
+            totalPages = data.texts.length;
+          }
+        }
+      } catch (error) {
+        console.error("Error calculating total pages:", error);
+        totalPages = 1;
       }
-      
-      return Array.from({ length: contentItems.length }).map((_, index) => (
-        <View
-          key={index}
-          style={[
-            styles.footerDot,
-            {
-              backgroundColor:
-                pageNumber === index + 1 ? Colors.lightGray : Colors.white,
-            },
-          ]}
-        />
-      ));
     }
+
+    console.log(`DEBUG: getDots - totalPages: ${totalPages}, currentPage: ${pageNumber}`);
+
+    // Simple approach: show max 5 dots, always centered around current page
+    const maxDots = 5;
     
-    // Fallback to using stored content if backend content isn't available
-    try {
-      if (!categoriesStore.categories[category] || !categoriesStore.categories[category][title]) {
-        return [
+    if (totalPages <= maxDots) {
+      // Show all dots if we have 5 or fewer pages
+      const dots = [];
+      for (let i = 1; i <= totalPages; i++) {
+        const isActive = i === pageNumber;
+        dots.push(
           <View
-            key={0}
-            style={[
-              styles.footerDot,
-              { backgroundColor: Colors.lightGray },
-            ]}
-          />
-        ];
-      }
-      
-      const data = categoriesStore.categories[category][title];
-      
-      if (filterMode !== 'all' && filteredCardIndices.length > 0) {
-        return filteredCardIndices.map((_, index) => (
-          <View
-            key={index}
+            key={i}
             style={[
               styles.footerDot,
               {
-                backgroundColor:
-                  pageNumber === index + 1 ? Colors.lightGray : Colors.white,
+                backgroundColor: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)',
+                transform: [{ scale: isActive ? 1.3 : 1 }],
               },
             ]}
           />
-        ));
+        );
+      }
+      return dots;
+    } else {
+      // Show 5 dots with current page in the center when possible
+      let startPage = Math.max(1, pageNumber - 2);
+      let endPage = Math.min(totalPages, pageNumber + 2);
+      
+      // Adjust if we don't have enough dots on one side
+      if (endPage - startPage + 1 < maxDots) {
+        if (startPage === 1) {
+          endPage = Math.min(totalPages, startPage + maxDots - 1);
+        } else if (endPage === totalPages) {
+          startPage = Math.max(1, endPage - maxDots + 1);
+        }
       }
       
-      let maxPages = 1;
+      console.log(`DEBUG: getDots - startPage: ${startPage}, endPage: ${endPage}, showing pages: ${startPage} to ${endPage}`);
       
-      if (data.manual && data.texts && data.texts[data.manualCount]) {
-        maxPages = Object.keys(data.texts[data.manualCount]).length;
-      } else if (data.texts && Array.isArray(data.texts)) {
-        maxPages = data.texts.length;
+      const dots = [];
+      for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === pageNumber;
+        dots.push(
+          <View
+            key={i}
+            style={[
+              styles.footerDot,
+              {
+                backgroundColor: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)',
+                transform: [{ scale: isActive ? 1.3 : 1 }],
+              },
+            ]}
+          />
+        );
       }
-      
-      return Array.from({ length: maxPages }).map((_, index) => (
-        <View
-          key={index}
-          style={[
-            styles.footerDot,
-            {
-              backgroundColor:
-                pageNumber === index + 1 ? Colors.lightGray : Colors.white,
-            },
-          ]}
-        />
-      ));
-    } catch (error) {
-      console.error("Error rendering dots:", error);
-      return [
-        <View
-          key={0}
-          style={[
-            styles.footerDot,
-            { backgroundColor: Colors.lightGray },
-          ]}
-        />
-      ];
+      return dots;
     }
   };
 
@@ -557,7 +546,7 @@ export default function SwipeableCardsPage({
       const results = await Promise.all(promises);
       const doneCount = results.filter((val) => val === "true").length;
 
-      const totalItems = categories.length * 5;
+      const totalItems = 20; // Ensuring we always check against the 20 total subcategories
       const percentage = (doneCount / totalItems) * 100;
 
       if (percentage >= 100) {
@@ -693,6 +682,7 @@ Check out this and more in the Winspire app! Download now from`;
           ref={scrollViewRef}
           showsHorizontalScrollIndicator={false}
           style={styles.cardsScrollView}
+          contentContainerStyle={styles.cardsContentContainer}
           onScroll={async (event) => {
             const currentPage = Math.round(
               event.nativeEvent.contentOffset.x / width
@@ -729,109 +719,99 @@ Check out this and more in the Winspire app! Download now from`;
           {getCards()}
         </ScrollView>
 
-        <View style={styles.footerContainer}>
-          <View style={styles.footerDotsContainer}>
-            {getDots()}
-          </View>
-          <View style={styles.footerButtonsContainer}>
-            {(() => {
-              try {
-                // Logic for 'Back' or 'Home' button
-                if (pageNumber === 1 && (filterMode !== 'all' || (filteredCardIndices.length <= 1 && contentItems.length <=1) )) {
-                  // Show 'Home' if it's the very first card and no real 'back' possible for current filter
-                  // Or a placeholder if you prefer not to show 'Home'
-                  return (
-                    <Pressable
-                      onPress={close} // Or a different action for 'Home'
-                      style={[styles.footerButton, styles.backButton]} // Styled as 'Back' button
-                    >
-                      <Text style={[styles.footerButtonText, styles.backButtonText]}>Home</Text>
-                    </Pressable>
-                  );
-                } else if (pageNumber > 1) {
-                  return (
-                    <Pressable
-                      onPress={() => {
-                        const effectiveCurrentIndex = filterMode === 'all' 
-                          ? pageNumber - 1 
-                          : filteredCardIndices.indexOf(contentItems[pageNumber - 1]?.originalIndex ?? -1);
-                        
-                        const targetVisualIndex = effectiveCurrentIndex -1; // scroll to previous visual item
-                        
-                        if (targetVisualIndex >= 0 && scrollViewRef.current) {
-                          scrollViewRef.current.scrollTo({
-                            x: width * targetVisualIndex,
-                            animated: true,
-                          });
-                        }
-                        setPageNumber((prev) => Math.max(1, prev - 1));
-                      }}
-                      style={[styles.footerButton, styles.backButton]}
-                    >
-                      <Text style={[styles.footerButtonText, styles.backButtonText]}>Back</Text>
-                    </Pressable>
-                  );
-                } else {
-                  // Placeholder for consistent spacing if no button is shown on left
+        {/* Footer Structure with Base Plate for "Rise" Effect */}
+        <View style={styles.footerBasePlate}> 
+          <View style={styles.footerContentContainer}> 
+            <View style={styles.footerDotsContainer}>
+              {getDots()}
+            </View>
+            <View style={styles.footerButtonsContainer}>
+              {(() => {
+                try {
+                  // Logic for 'Back' or 'Home' button
+                  if (pageNumber === 1 && (filterMode !== 'all' || (filteredCardIndices.length <= 1 && contentItems.length <=1) )) {
+                    return (
+                      <Pressable
+                        onPress={close}
+                        style={[styles.footerButton, styles.backButton]}
+                      >
+                        <Text style={[styles.footerButtonText, styles.backButtonText]}>Home</Text>
+                      </Pressable>
+                    );
+                  } else if (pageNumber > 1) {
+                    return (
+                      <Pressable
+                        onPress={() => {
+                          const effectiveCurrentIndex = filterMode === 'all' 
+                            ? pageNumber - 1 
+                            : filteredCardIndices.indexOf(contentItems[pageNumber - 1]?.originalIndex ?? -1);
+                          const targetVisualIndex = effectiveCurrentIndex -1;
+                          if (targetVisualIndex >= 0 && scrollViewRef.current) {
+                            scrollViewRef.current.scrollTo({
+                              x: width * targetVisualIndex,
+                              animated: true,
+                            });
+                          }
+                          setPageNumber((prev) => Math.max(1, prev - 1));
+                        }}
+                        style={[styles.footerButton, styles.backButton]}
+                      >
+                        <Text style={[styles.footerButtonText, styles.backButtonText]}>Back</Text>
+                      </Pressable>
+                    );
+                  } else {
+                    return <View style={styles.footerButtonPlaceholder} />;
+                  }
+                } catch (error) {
                   return <View style={styles.footerButtonPlaceholder} />;
                 }
-              } catch (error) {
-                console.error("Error rendering back button:", error);
-                return <View style={styles.footerButtonPlaceholder} />;
-              }
-            })()}
-
-            {(() => {
-              try {
-                const totalCardsToConsider = filterMode === 'all' ? contentItems.length : filteredCardIndices.length;
-                // Logic for 'Next' or 'Done' button
-                if (pageNumber < totalCardsToConsider) {
-                  return (
-                    <Pressable
-                      onPress={() => {
-                        const effectiveCurrentIndex = filterMode === 'all' 
-                          ? pageNumber - 1 
-                          : filteredCardIndices.indexOf(contentItems[pageNumber - 1]?.originalIndex ?? -1);
-                        
-                        const targetVisualIndex = effectiveCurrentIndex + 1; // scroll to next visual item
-
-                        if (targetVisualIndex < totalCardsToConsider && scrollViewRef.current) {
-                          scrollViewRef.current.scrollTo({
-                            x: width * targetVisualIndex,
-                            animated: true,
-                          });
-                        }
-                        setPageNumber((prev) => Math.min(totalCardsToConsider, prev + 1));
-                      }}
-                      style={[styles.footerButton, styles.nextButton]}
-                    >
-                      <Text style={[styles.footerButtonText, styles.nextButtonText]}>Next</Text>
-                    </Pressable>
-                  );
-                } else if (pageNumber === totalCardsToConsider && totalCardsToConsider > 0) {
-                    // Show 'Done' if it's the last card
+              })()}
+              {(() => {
+                try {
+                  const totalCardsToConsider = filterMode === 'all' ? contentItems.length : filteredCardIndices.length;
+                  if (pageNumber < totalCardsToConsider) {
                     return (
-                        <Pressable
-                          onPress={() => {
-                            if (Platform.OS === "ios") {
-                                StoreReview.requestReview();
-                            }
-                            close();
-                          }}
-                          style={[styles.footerButton, styles.nextButton]} // Styled as 'Next' button (or a specific 'Done' style)
-                        >
-                          <Text style={[styles.footerButtonText, styles.nextButtonText]}>Done</Text>
-                        </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          const effectiveCurrentIndex = filterMode === 'all' 
+                            ? pageNumber - 1 
+                            : filteredCardIndices.indexOf(contentItems[pageNumber - 1]?.originalIndex ?? -1);
+                          const targetVisualIndex = effectiveCurrentIndex + 1;
+                          if (targetVisualIndex < totalCardsToConsider && scrollViewRef.current) {
+                            scrollViewRef.current.scrollTo({
+                              x: width * targetVisualIndex,
+                              animated: true,
+                            });
+                          }
+                          setPageNumber((prev) => Math.min(totalCardsToConsider, prev + 1));
+                        }}
+                        style={[styles.footerButton, styles.nextButton]}
+                      >
+                        <Text style={[styles.footerButtonText, styles.nextButtonText]}>Next</Text>
+                      </Pressable>
                     );
-                } else {
-                    // Placeholder for consistent spacing if no button is shown on right
+                  } else if (pageNumber === totalCardsToConsider && totalCardsToConsider > 0) {
+                    return (
+                      <Pressable
+                        onPress={() => {
+                          if (Platform.OS === "ios") {
+                            StoreReview.requestReview();
+                          }
+                          close();
+                        }}
+                        style={[styles.footerButton, styles.nextButton]}
+                      >
+                        <Text style={[styles.footerButtonText, styles.nextButtonText]}>Done</Text>
+                      </Pressable>
+                    );
+                  } else {
                     return <View style={styles.footerButtonPlaceholder} />;
+                  }
+                } catch (error) {
+                  return <View style={styles.footerButtonPlaceholder} />;
                 }
-              } catch (error) {
-                console.error("Error rendering next/done button:", error);
-                return <View style={styles.footerButtonPlaceholder} />;
-              }
-            })()}
+              })()}
+            </View>
           </View>
         </View>
       </View>
@@ -849,6 +829,7 @@ const styles = StyleSheet.create({
   
   cardsScrollView: {
     backgroundColor: "#F0EDE5", // Beige/off-white background from the reference image
+    flex: 1, // Take remaining space
   },
 
   headerContainer: {
@@ -894,74 +875,98 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(14),
   },
 
-  footerContainer: {
-    paddingBottom: verticalScale(Platform.OS === "android" ? 30 : 40),
+  footerArea: { // This will be renamed to footerContentContainer
+    backgroundColor: '#1C1C1E', 
     paddingHorizontal: horizontalScale(20),
+    paddingTop: verticalScale(10), // Reduced top padding
+    borderTopLeftRadius: moderateScale(20),
+    borderTopRightRadius: moderateScale(20),
+    // Elevation/shadow can be on the base plate or here, let's keep on individual for now
+  },
+
+  footerBasePlate: {
+    backgroundColor: '#2C2C2E', // Lighter dark color for the base
+    paddingBottom: verticalScale(Platform.OS === "android" ? 70 : 80), // Creates the "rise"
+    // Elevation for the entire base plate
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  
+  // Renaming footerArea to footerContentContainer and adjusting padding
+  footerContentContainer: {
+    backgroundColor: '#1C1C1E', // Darker color for main content
+    paddingHorizontal: horizontalScale(30), // Increased padding to push content to middle
+    paddingTop: verticalScale(15), 
+    paddingBottom: verticalScale(15), // Padding between buttons and edge of this container
+    borderTopLeftRadius: moderateScale(20),
+    borderTopRightRadius: moderateScale(20),
   },
 
   footerDotsContainer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: horizontalScale(8),
-    bottom: verticalScale(180), // Positioned exactly in the middle of the black space
-    zIndex: 100,
-  },
-
-  footerDot: {
-    width: horizontalScale(8),
-    height: horizontalScale(8),
-    borderRadius: moderateScale(4),
-    backgroundColor: "white", // Ensure dots are white
+    gap: horizontalScale(10),
+    paddingVertical: verticalScale(20), // Keep this for dot area's internal padding
+    marginBottom: verticalScale(15), // Spacing between dots and buttons
   },
 
   footerButtonsContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: verticalScale(15),
-    marginBottom: verticalScale(40),
-    marginRight: horizontalScale(50),
-    marginLeft: horizontalScale(40),
+    justifyContent: "space-around", // Use space-around to push from edges
+    // paddingHorizontal is now on footerContentContainer
   },
 
   footerButton: {
-    width: "38%",
-    height: verticalScale(35),
+    width: "45%",
+    height: verticalScale(50),
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: moderateScale(30),
-    elevation: 2, // Android shadow
+    borderRadius: moderateScale(25),
+    // Enhanced elevation and shadow
+    elevation: 4, // Android shadow
     shadowColor: '#000', // iOS shadow
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
   },
+  
   footerButtonPlaceholder: {
-    width: "48%",
-    height: verticalScale(55),
+    width: "45%",
+    height: verticalScale(50),
   },
 
   footerButtonText: {
     fontFamily: "SFProBold",
-    fontSize: moderateScale(18),
+    fontSize: moderateScale(16),
+    fontWeight: "600",
   },
 
   backButton: {
-    backgroundColor: "#BCBCBC", // Light gray color from the reference image
+    backgroundColor: "#8E8E93", // Updated gray color for better contrast
   },
+  
   backButtonText: {
     color: Colors.white,
+    fontFamily: "SFProBold",
+    fontSize: moderateScale(30),
+    fontWeight: "900",
   },
 
   nextButton: {
-    backgroundColor: "#FF5A5F", // Coral red color from the reference image
+    backgroundColor: "#FF5A5F", // Keep the coral red
+    
   },
+  
   nextButtonText: {
     color: Colors.white,
+    fontFamily: "SFProBold",
+    fontSize: moderateScale(30),
+    fontWeight: "900",
   },
 
   loadingContainer: {
@@ -978,5 +983,18 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(16),
     marginTop: verticalScale(20),
     textAlign: "center",
+  },
+
+  cardsContentContainer: {
+    // Ensure cards have proper spacing
+    paddingTop: verticalScale(10),
+    paddingBottom: verticalScale(20),
+  },
+
+  footerDot: {
+    width: horizontalScale(9),
+    height: horizontalScale(8),
+    borderRadius: moderateScale(20),
+    backgroundColor: "rgba(255, 255, 255, 0.4)", 
   },
 }); 
