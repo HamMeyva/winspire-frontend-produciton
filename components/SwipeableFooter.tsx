@@ -44,6 +44,8 @@ interface SwipeableFooterProps {
   setSettingsBottomSheetVisible: (visible: boolean) => void;
   refreshing: boolean;
   onRefresh: () => Promise<void>;
+  shouldRefreshCategories?: boolean;
+  forceNavigateToContentType?: string;
 }
 
 const SwipeableFooter = observer(({
@@ -57,6 +59,8 @@ const SwipeableFooter = observer(({
   setSettingsBottomSheetVisible,
   refreshing,
   onRefresh,
+  shouldRefreshCategories,
+  forceNavigateToContentType,
 }: SwipeableFooterProps) => {
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -90,6 +94,78 @@ const SwipeableFooter = observer(({
 
     fetchAllCategories();
   }, []);
+
+  // Refetch categories when shouldRefreshCategories prop changes
+  useEffect(() => {
+    if (shouldRefreshCategories) {
+      const fetchAllCategories = async () => {
+        console.log('DEBUG: SwipeableFooter - Refreshing all categories due to shouldRefreshCategories');
+        const currentActiveContentType = contentTypeStore.activeContentType; // Preserve current content type
+        const allCategories: Record<string, any> = {};
+        
+        for (const contentType of contentTypes) {
+          try {
+            const categories = await API.getCategoriesByContentType(contentType);
+            allCategories[contentType] = categories;
+          } catch (error) {
+            console.error(`Error fetching categories for ${contentType}:`, error);
+            allCategories[contentType] = {};
+          }
+        }
+        
+        setCategoriesByContentType(allCategories);
+        
+        // Update categories store with current active content type data (preserve the current type)
+        if (currentActiveContentType && allCategories[currentActiveContentType]) {
+          const currentCategories = allCategories[currentActiveContentType] || {};
+          categoriesStore.update(currentCategories);
+          console.log('DEBUG: SwipeableFooter - Preserved content type after refresh:', currentActiveContentType);
+        } else if (contentTypeStore.activeContentType) {
+          // Fallback to current active content type if the preserved one is not available
+          const currentCategories = allCategories[contentTypeStore.activeContentType] || {};
+          categoriesStore.update(currentCategories);
+        }
+      };
+
+      fetchAllCategories();
+    }
+  }, [shouldRefreshCategories]);
+
+  // Handle forced navigation to specific content type
+  useEffect(() => {
+    if (forceNavigateToContentType && contentTypes.includes(forceNavigateToContentType)) {
+      const targetIndex = contentTypes.indexOf(forceNavigateToContentType);
+      console.log('DEBUG: SwipeableFooter - Forcing navigation to:', forceNavigateToContentType, 'at index:', targetIndex);
+      
+      // Update states
+      setCurrentIndex(targetIndex);
+      contentTypeStore.setActiveContentType(forceNavigateToContentType);
+      
+      // Update categories store with new content type data
+      const newCategories = categoriesByContentType[forceNavigateToContentType] || {};
+      categoriesStore.update(newCategories);
+      
+      // Set active tab to first category of new content type
+      const categoryNames = Object.keys(newCategories);
+      if (categoryNames.length > 0) {
+        setActiveTab(categoryNames[0]);
+      }
+      
+      // Scroll FlatList to correct position
+      if (flatListRef.current) {
+        setTimeout(() => {
+          try {
+            flatListRef.current?.scrollToIndex({
+              index: targetIndex,
+              animated: true,
+            });
+          } catch (error) {
+            console.error('Error scrolling to forced content type:', error);
+          }
+        }, 100);
+      }
+    }
+  }, [forceNavigateToContentType]);
 
   // Update current index when active content type changes
   useEffect(() => {
@@ -187,7 +263,7 @@ const SwipeableFooter = observer(({
                           key={`${contentType}-${itemIndex}`}
                           index={i}
                           categoryName={category}
-                          completed={categoryDone[categoryIndex * 5 + i] || "false"}
+                          completed={categoryDone[categoryIndex] || "false"}
                           title={categoryItem.name}
                           onPressCategory={() => {
                             try {
@@ -353,7 +429,7 @@ const styles = StyleSheet.create({
     
     allCategoriesContainer: {
       padding: horizontalScale(20),
-      paddingBottom: verticalScale(30),
+      paddingBottom: verticalScale(50),
     },
     
     emptyContainer: {
@@ -372,7 +448,7 @@ const styles = StyleSheet.create({
     tabContainer: {
       backgroundColor: Colors.black,
       paddingHorizontal: horizontalScale(16),
-      paddingVertical: verticalScale(16),
+      paddingVertical: verticalScale(14),
       paddingBottom: verticalScale(30), // Add space for home indicator
       alignItems: 'center',
       justifyContent: 'center',

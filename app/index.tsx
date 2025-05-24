@@ -88,11 +88,14 @@ function Main() {
   const [selectedCategoryData, setSelectedCategoryData] = useState<any>(null);
 
   const [categoryDone, setCategoryDone] = useState<any[]>([]);
+  const [appWideProgress, setAppWideProgress] = useState<any[]>([]);
+  const [shouldRefreshCategories, setShouldRefreshCategories] = useState(false);
+  const [forceNavigateToContentType, setForceNavigateToContentType] = useState<string | undefined>(undefined);
 
-  const updateCategoryDone = async () => {
-    // Check completion across ALL content types for app-wide progress (20 subcategories total)
+  // Calculate app-wide progress for progress bar (across all content types)
+  const getAppWideProgress = async () => {
     const contentTypes = ['hack', 'hack2', 'tip', 'tip2'];
-    const newCategoryDone = [];
+    const completedCategories = [];
     
     // Predefined category names for each content type (in consistent order)
     const categoryNamesByType: Record<string, string[]> = {
@@ -107,14 +110,56 @@ function Main() {
       const categoryNames = categoryNamesByType[contentType];
       if (categoryNames) {
         for (const categoryName of categoryNames) {
-          // Check subcategory 0 for each category (only one subcategory per category matters for progress)
+          // Check ALL subcategories (0-4) - category is complete if ANY subcategory is completed
           const value = await STORAGE.getCategoryDone(categoryName, 0);
-          newCategoryDone.push(value);
+          completedCategories.push(value);
         }
       }
     }
 
-    console.log(`DEBUG: App-wide progress check - ${newCategoryDone.filter(v => v === "true").length}/20 subcategories completed`);
+    console.log(`DEBUG: App-wide progress check - ${completedCategories.filter(v => v === "true").length}/20 subcategories completed`);
+    return completedCategories;
+  };
+
+  // Update category completion status for CURRENT content type only
+  const updateCategoryDone = async () => {
+    // Update completion status for CURRENT content type only (5 categories)
+    const activeContentType = contentTypeStore.activeContentType;
+    if (!activeContentType) return;
+    
+    const newCategoryDone = [];
+    
+    // Predefined category names for current content type
+    const categoryNamesByType: Record<string, string[]> = {
+      'hack': ['Dating Hacks', 'Money Hacks', 'Power Hacks', 'Survival Hacks', 'Trend Hacks'],
+      'hack2': ['Business Hacks', 'Loophole Hacks', 'Mind Hacks', 'Tinder Hacks', 'Travel Hacks'],
+      'tip': ['Dating & Relationships', 'Finance & Wealth Building', 'Fitness & Nutrition', 'Mindset & Motivation', 'Social Skills'],
+      'tip2': ['Career & Leadership', 'Creative Thinking & Problem-Solving', 'Productivity & Time Management', 'Psychology & Influence', 'Wisdom & Learning']
+    };
+
+    const categoryNames = categoryNamesByType[activeContentType];
+    if (!categoryNames) return;
+
+    // Check each category in the current content type
+    for (const categoryName of categoryNames) {
+      try {
+        // Check ALL subcategories (0-4) - category is complete if ANY subcategory is completed
+        let isAnySubcategoryCompleted = false;
+        for (let subcategoryIndex = 0; subcategoryIndex < 5; subcategoryIndex++) {
+          const isCompleted = await STORAGE.getCategoryDone(categoryName, subcategoryIndex);
+          if (isCompleted === "true") {
+            isAnySubcategoryCompleted = true;
+            break; // Found a completed subcategory, no need to check others
+          }
+        }
+        newCategoryDone.push(isAnySubcategoryCompleted ? "true" : "false");
+      } catch (error) {
+        console.error(`Error checking completion for ${categoryName}:`, error);
+        newCategoryDone.push("false");
+      }
+    }
+
+    console.log(`DEBUG: updateCategoryDone for ${activeContentType}:`, newCategoryDone);
     setCategoryDone(newCategoryDone);
   };
   
@@ -142,8 +187,12 @@ function Main() {
         categoriesStore.update(categoriesData);
       }
       
-      // Update category completion status
+      // Update category completion status for current content type
       await updateCategoryDone();
+      
+      // Update app-wide progress for progress bar
+      const appProgress = await getAppWideProgress();
+      setAppWideProgress(appProgress);
     } catch (error) {
       console.error('Error refreshing content:', error);
     } finally {
@@ -152,20 +201,25 @@ function Main() {
   };
 
   useEffect(() => {
-    updateCategoryDone();
+    const updateProgress = async () => {
+      await updateCategoryDone();
+      const appProgress = await getAppWideProgress();
+      setAppWideProgress(appProgress);
+    };
+    updateProgress();
   }, [activeTab]);
   
   // When returning from a cards page, refresh to see if any categories were completed
   useEffect(() => {
     if (!cardsPageVisible && selectedCategoryData) {
-      console.log('Returning from cards page, checking for completed categories');
-      updateCategoryDone();
+      console.log('Returning from cards page - refresh will be handled by close function');
+      // Refresh is now handled in the close function itself, so this is just for logging
     }
   }, [cardsPageVisible]);
   
   // Calculate total completion for progress bar (always out of 20 subcategories)
   const getTotalCompletion = () => {
-    const completedCount = categoryDone.filter(value => value === "true").length;
+    const completedCount = appWideProgress.filter(value => value === "true").length;
     return { completedCount, totalCount: 20 };
   };
   
@@ -224,6 +278,15 @@ function Main() {
       appStateSubscription.remove();
     };
   }, [isRevenueCatConfigured]); // Dependency array includes isRevenueCatConfigured
+
+  // Initialize app-wide progress on app start
+  useEffect(() => {
+    const initializeProgress = async () => {
+      const appProgress = await getAppWideProgress();
+      setAppWideProgress(appProgress);
+    };
+    initializeProgress();
+  }, []);
 
   // Function to update subscription status based on RevenueCat CustomerInfo
   const updateSubscriptionStatus = (customerInfo: CustomerInfo) => { 
@@ -324,11 +387,10 @@ function Main() {
     }
   };
 
+  // Effect to handle daily reset and update progress when activeContentType changes
   useEffect(() => {
-    const loadDataForActiveContentType = async () => {
+    const handleActiveContentTypeChange = async () => {
       if (contentTypeStore.activeContentType) {
-        // setLoadingCategories(true); 
-
         // --- Daily progress reset logic START ---
         const currentDate = new Date().toISOString().split('T')[0];
         const lastResetDate = await STORAGE.getLastDailyProgressResetDate();
@@ -342,28 +404,30 @@ function Main() {
         }
         // --- Daily progress reset logic END ---
         
-        console.log('Fetching categories for new activeContentType:', contentTypeStore.activeContentType);
-        try {
-          const categoriesData = await API.getCategoriesByContentType(contentTypeStore.activeContentType);
-          categoriesStore.update(categoriesData);
-          await updateCategoryDone(); 
-        } catch (error) {
-          console.error('Error fetching categories for activeContentType:', error);
-          // categoriesStore.update({}); 
-        }
-        // setLoadingCategories(false);
+        console.log('DEBUG: Active content type changed to:', contentTypeStore.activeContentType);
+        
+        // Add small delay to ensure SwipeableFooter has updated categoriesStore
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Update category completion for current content type
+        // (SwipeableFooter already handles fetching and updating categoriesStore)
+        await updateCategoryDone();
+        
+        // Update app-wide progress
+        const appProgress = await getAppWideProgress();
+        setAppWideProgress(appProgress);
       } else {
-        // No active content type, ensure categories are cleared if necessary
-        if (Object.keys(categoriesStore.categories).length > 0) {
-          console.log("DEBUG: No active content type, clearing categories from store.");
-          categoriesStore.update({});
-          await updateCategoryDone(); 
-        }
+        // No active content type, clear everything
+        console.log("DEBUG: No active content type, clearing categories from store.");
+        categoriesStore.update({});
+        await updateCategoryDone();
+        const appProgress = await getAppWideProgress();
+        setAppWideProgress(appProgress);
       }
     };
 
-    loadDataForActiveContentType();
-  }, [contentTypeStore.activeContentType]); 
+    handleActiveContentTypeChange();
+  }, [contentTypeStore.activeContentType]);
 
   const makePurchase = async (packageToPurchase: PurchasesPackage | null | undefined) => {
     if (!packageToPurchase) {
@@ -513,56 +577,6 @@ function Main() {
   useEffect(() => {
     setChecker(!checker);
   }, [offeringsStore.offerings, subscribed, freeTrialAvailable]);
-
-  // When returning from a cards page, refresh to see if any categories were completed
-  useEffect(() => {
-    if (!cardsPageVisible && selectedCategoryData) {
-      console.log('Returning from cards page, checking for completed categories');
-      updateCategoryDone();
-    }
-  }, [cardsPageVisible]);
-
-  // Effect to fetch data when activeContentType changes and handle daily reset
-  useEffect(() => {
-    const fetchDataForActiveContentType = async () => {
-      if (contentTypeStore.activeContentType) {
-        // setLoadingCategories(true); 
-
-        // --- Daily progress reset logic START ---
-        const currentDate = new Date().toISOString().split('T')[0];
-        const lastResetDate = await STORAGE.getLastDailyProgressResetDate();
-
-        if (currentDate !== lastResetDate) {
-          console.log(`DEBUG: Main Effect (activeContentType change) - New day (${currentDate}), last reset was (${lastResetDate}). Resetting daily subcategory progress.`);
-          await STORAGE.resetAllSubCategoryProgress();
-          await STORAGE.setLastDailyProgressResetDate(currentDate);
-        } else {
-          console.log(`DEBUG: Main Effect (activeContentType change) - Daily subcategory progress already reset for ${currentDate}.`);
-        }
-        // --- Daily progress reset logic END ---
-        
-        console.log('Fetching categories for new activeContentType:', contentTypeStore.activeContentType);
-        try {
-          const categoriesData = await API.getCategoriesByContentType(contentTypeStore.activeContentType);
-          categoriesStore.update(categoriesData);
-          await updateCategoryDone(); 
-        } catch (error) {
-          console.error('Error fetching categories for activeContentType:', error);
-          // categoriesStore.update({}); 
-        }
-        // setLoadingCategories(false);
-      } else {
-        // No active content type, ensure categories are cleared if necessary
-        if (Object.keys(categoriesStore.categories).length > 0) {
-          console.log("DEBUG: No active content type, clearing categories from store.");
-          categoriesStore.update({});
-          await updateCategoryDone(); 
-        }
-      }
-    };
-
-    fetchDataForActiveContentType();
-  }, [contentTypeStore.activeContentType]); 
 
   const handleClosePaywall = () => {
     setPaywallDismissedInitially(true);
@@ -744,14 +758,42 @@ function Main() {
       return (
         <GestureHandlerRootView style={{flex:1}}> 
           <SwipeableCardsPage
-            checkCategoryDone={async () => await updateCategoryDone()}
+            checkCategoryDone={async () => {
+              await updateCategoryDone();
+              const appProgress = await getAppWideProgress();
+              setAppWideProgress(appProgress);
+            }}
             category={selectedCategoryData.categoryName || activeTab}
             title={selectedCategoryData.id || cardsPageTitle}
             cardsPageVisible={cardsPageVisible}
             close={() => {
+              const currentContentType = contentTypeStore.activeContentType; // Store current content type
               setCardsPageVisible(false);
               setSelectedCategoryData(null);
-              console.log("DEBUG: Closed SwipeableCardsPage");
+              
+              // Force navigation back to the content type we were viewing with full refresh
+              if (currentContentType) {
+                const performFullRefresh = async () => {
+                  // Trigger category refresh
+                  setShouldRefreshCategories(true);
+                  setForceNavigateToContentType(currentContentType);
+                  
+                  // Also trigger the same progress updates as onRefresh
+                  await updateCategoryDone();
+                  const appProgress = await getAppWideProgress();
+                  setAppWideProgress(appProgress);
+                  
+                  // Reset flags after processing
+                  setTimeout(() => {
+                    setShouldRefreshCategories(false);
+                    setForceNavigateToContentType(undefined);
+                  }, 500);
+                };
+                
+                performFullRefresh();
+              }
+              
+              console.log("DEBUG: Closed SwipeableCardsPage, forcing navigation with full refresh to:", currentContentType);
             }}
             contentType={contentTypeStore.activeContentType}
           />
@@ -759,13 +801,10 @@ function Main() {
       );
     }
 
-
-
-
     return (
       <GestureHandlerRootView style={styles.container}>
         <Header
-          categoryDone={categoryDone}
+          categoryDone={appWideProgress}
           onPressInfo={() => {
             if (settingsBottomSheetVisible === false) {
               setInfoBottomSheetVisible(true);
@@ -778,10 +817,6 @@ function Main() {
           }}
         />
         
-
-        
-
-
         {/* Main content with swipeable footer */}
         <SwipeableFooter
           categoryDone={categoryDone}
@@ -794,6 +829,8 @@ function Main() {
           setSettingsBottomSheetVisible={setSettingsBottomSheetVisible}
           refreshing={refreshing}
           onRefresh={onRefresh}
+          shouldRefreshCategories={shouldRefreshCategories}
+          forceNavigateToContentType={forceNavigateToContentType}
         />
 
         {infoBottomSheetVisible && (

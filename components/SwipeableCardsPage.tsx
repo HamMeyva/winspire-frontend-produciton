@@ -922,12 +922,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: verticalScale(30),
+    marginTop: verticalScale(15),
+    marginBottom: verticalScale(40),
+    marginRight: horizontalScale(50),
+    marginLeft: horizontalScale(40),
   },
 
   footerButton: {
-    width: "48%",
-    height: verticalScale(55),
+    width: "38%",
+    height: verticalScale(35),
     alignItems: "center",
     justifyContent: "center",
     borderRadius: moderateScale(30),
